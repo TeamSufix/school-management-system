@@ -11,9 +11,7 @@ import UnlinkStudentButton from "@/components/school/UnlinkStudentButton";
 export default async function ParentsPage() {
   const user = await getCurrentUser();
 
-  // =========================================================
   // AUTHENTICATION
-  // =========================================================
 
   if (!user) {
     redirect("/login");
@@ -27,17 +25,13 @@ export default async function ParentsPage() {
     redirect("/school/dashboard");
   }
 
-  // =========================================================
   // ADMIN CLIENT
-  // =========================================================
 
   const supabase = createAdminClient();
 
   const schoolId = user.schoolId;
 
-  // =========================================================
   // LOAD PARENT MEMBERSHIPS
-  // =========================================================
 
   const { data: parentMemberships, error: parentsError } =
     await supabase
@@ -58,9 +52,7 @@ export default async function ParentsPage() {
 
   const memberships = parentMemberships ?? [];
 
-  // =========================================================
   // LOAD PARENT PROFILES
-  // =========================================================
 
   const parentUserIds = memberships.map(
     (parent) => parent.user_id,
@@ -92,9 +84,7 @@ export default async function ParentsPage() {
     }
   }
 
-  // =========================================================
   // COMBINE MEMBERSHIPS + PROFILES
-  // =========================================================
 
   const parents = memberships.map((membership) => {
     const profile = profiles.find(
@@ -107,9 +97,7 @@ export default async function ParentsPage() {
     };
   });
 
-  // =========================================================
   // LOAD STUDENTS
-  // =========================================================
 
   const { data: students, error: studentsError } = await supabase
     .from("students")
@@ -128,9 +116,7 @@ export default async function ParentsPage() {
 
   const schoolStudents = students ?? [];
 
-  // =========================================================
   // LOAD PARENT-STUDENT LINKS
-  // =========================================================
 
   const studentIds = schoolStudents.map(
     (student) => student.id,
@@ -165,15 +151,10 @@ export default async function ParentsPage() {
     }
   }
 
-  // =========================================================
   // PAGE
-  // =========================================================
 
   return (
     <main className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:px-10">
-      {/* =====================================================
-          HEADER
-      ====================================================== */}
 
       <Link
         href="/school/dashboard"
@@ -217,14 +198,9 @@ export default async function ParentsPage() {
         </div>
       </div>
 
-      {/* =====================================================
-          CONTENT
-      ====================================================== */}
 
       <div className="mt-8 grid gap-6 xl:grid-cols-[360px_1fr]">
-        {/* ===================================================
-            CREATE PARENT
-        ==================================================== */}
+        {/* CREATE PARENT */}
 
         <div className="h-fit rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-sm">
           <div className="mb-5">
@@ -246,9 +222,7 @@ export default async function ParentsPage() {
           )}
         </div>
 
-        {/* ===================================================
-            PARENT LIST
-        ==================================================== */}
+        {/* PARENT LIST */}
 
         <section className="min-w-0 space-y-4">
           {parents.length === 0 ? (
@@ -312,9 +286,7 @@ export default async function ParentsPage() {
                   key={parent.user_id}
                   className="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-sm"
                 >
-                  {/* =================================================
-                      PARENT HEADER
-                  ================================================== */}
+             
 
                   <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
                     <div className="flex items-center gap-4">
@@ -359,9 +331,6 @@ export default async function ParentsPage() {
                     </div>
                   </div>
 
-                  {/* =================================================
-                      CHILDREN
-                  ================================================== */}
 
                   <div className="border-t border-slate-100 px-5 py-5 sm:px-6">
                     <div>
@@ -439,9 +408,6 @@ export default async function ParentsPage() {
                     )}
                   </div>
 
-                  {/* =================================================
-                      LINK STUDENT
-                  ================================================== */}
 
                   <div className="border-t border-slate-100 bg-slate-50/40 px-5 py-5 sm:px-6">
                     <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
@@ -469,9 +435,7 @@ export default async function ParentsPage() {
   );
 }
 
-// =============================================================
 // SUMMARY BADGE
-// =============================================================
 
 function SummaryBadge({
   value,
@@ -493,9 +457,7 @@ function SummaryBadge({
   );
 }
 
-// =============================================================
 // INITIALS
-// =============================================================
 
 function getInitials(
   firstName?: string | null,

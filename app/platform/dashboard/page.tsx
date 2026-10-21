@@ -37,9 +37,6 @@ export default async function PlatformDashboard() {
 
   return (
     <div className="mx-auto max-w-[1500px] px-5 py-7 sm:px-8 lg:px-10">
-      {/* =====================================================
-          HERO
-      ====================================================== */}
 
       <section className="relative overflow-hidden rounded-[28px] bg-[#07130d] px-6 py-8 text-white shadow-xl shadow-slate-200/40 sm:px-9 sm:py-10">
         <div className="absolute -right-20 -top-32 h-80 w-80 rounded-full bg-green-500/10 blur-3xl" />
@@ -76,10 +73,6 @@ export default async function PlatformDashboard() {
           </Link>
         </div>
       </section>
-
-      {/* =====================================================
-          STATS
-      ====================================================== */}
 
       <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
@@ -118,14 +111,8 @@ export default async function PlatformDashboard() {
         />
       </section>
 
-      {/* =====================================================
-          MAIN GRID
-      ====================================================== */}
 
       <section className="mt-7 grid gap-7 xl:grid-cols-[1fr_340px]">
-        {/* ===================================================
-            RECENT SCHOOLS
-        ==================================================== */}
 
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
@@ -193,9 +180,6 @@ export default async function PlatformDashboard() {
           )}
         </div>
 
-        {/* ===================================================
-            QUICK ACTIONS
-        ==================================================== */}
 
         <div className="space-y-7">
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -263,9 +247,6 @@ export default async function PlatformDashboard() {
         </div>
       </section>
 
-      {/* =====================================================
-          BOTTOM
-      ====================================================== */}
 
       <section className="mt-7 flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm sm:flex-row sm:items-center">
         <div>
@@ -290,9 +271,6 @@ export default async function PlatformDashboard() {
   );
 }
 
-/* ============================================================
-   STAT CARD
-============================================================ */
 
 function StatCard({
   label,
@@ -328,9 +306,6 @@ function StatCard({
   );
 }
 
-/* ============================================================
-   QUICK ACTION
-============================================================ */
 
 function QuickAction({
   href,
@@ -365,9 +340,6 @@ function QuickAction({
   );
 }
 
-/* ============================================================
-   EMPTY
-============================================================ */
 
 function EmptyState() {
   return (
@@ -394,9 +366,6 @@ function EmptyState() {
   );
 }
 
-/* ============================================================
-   HELPERS
-============================================================ */
 
 function getInitials(name: string) {
   return name

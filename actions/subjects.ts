@@ -1,244 +1,10 @@
-// "use server";
-
-// import { revalidatePath } from "next/cache";
-
-// import { getCurrentSchool, getCurrentUser } from "@/lib/auth/get-user";
-
-// import { getManagementContext } from "@/lib/auth/get-management-context";
-
-// async function getSubjectContext(requestedSchoolId?: string | null) {
-//   const user = await getCurrentUser();
-
-//   if (!user) {
-//     return {
-//       success: false as const,
-//       error: "You must be logged in.",
-//     };
-//   }
-
-//   if (user.role === "super_admin") {
-//     if (!requestedSchoolId) {
-//       return {
-//         success: false as const,
-//         error: "A school must be selected.",
-//       };
-//     }
-
-//     const context = await getManagementContext(requestedSchoolId);
-
-//     if (!context || context.role !== "super_admin") {
-//       return {
-//         success: false as const,
-//         error: "You are not authorized to manage this school.",
-//       };
-//     }
-
-//     return {
-//       success: true as const,
-//       schoolId: context.schoolId,
-//       client: context.client,
-//     };
-//   }
-
-//   const current = await getCurrentSchool();
-
-//   if (!current || current.role !== "school_admin") {
-//     return {
-//       success: false as const,
-//       error: "You are not authorized to manage subjects.",
-//     };
-//   }
-
-//   if (requestedSchoolId && requestedSchoolId !== current.schoolId) {
-//     return {
-//       success: false as const,
-//       error: "You cannot manage another school.",
-//     };
-//   }
-
-//   const context = await getManagementContext(current.schoolId);
-
-//   if (!context) {
-//     return {
-//       success: false as const,
-//       error: "Unable to access the school.",
-//     };
-//   }
-
-//   return {
-//     success: true as const,
-//     schoolId: current.schoolId,
-//     client: context.client,
-//   };
-// }
-
-// export async function createSubject(formData: FormData) {
-//   const requestedSchoolId =
-//     String(formData.get("school_id") ?? "").trim() || null;
-
-//   const current = await getSubjectContext(requestedSchoolId);
-
-//   if (!current.success) {
-//     return {
-//       error: current.error,
-//     };
-//   }
-
-//   const name = String(formData.get("name") ?? "").trim();
-
-//   const code = String(formData.get("code") ?? "").trim();
-
-//   if (!name) {
-//     return {
-//       error: "Subject name is required.",
-//     };
-//   }
-
-//   const { error } = await current.client.from("subjects").insert({
-//     school_id: current.schoolId,
-//     name,
-//     code: code || null,
-//   });
-
-//   if (error) {
-//     console.error("Create subject error:", error);
-
-//     if (error.code === "23505") {
-//       return {
-//         error: "This subject already exists.",
-//       };
-//     }
-
-//     return {
-//       error: "Failed to create subject.",
-//     };
-//   }
-
-//   revalidatePath("/school/subjects");
-//   revalidatePath("/school/dashboard");
-
-//   if (requestedSchoolId) {
-//     revalidatePath(`/platform/schools/${requestedSchoolId}`);
-//     revalidatePath(`/platform/schools/${requestedSchoolId}/subjects`);
-//   }
-
-//   return {
-//     success: true,
-//   };
-// }
-
-// export async function updateSubject(formData: FormData) {
-//   const requestedSchoolId =
-//     String(formData.get("school_id") ?? "").trim() || null;
-
-//   const current = await getSubjectContext(requestedSchoolId);
-
-//   if (!current.success) {
-//     return {
-//       error: current.error,
-//     };
-//   }
-
-//   const id = String(formData.get("id") ?? "").trim();
-
-//   const name = String(formData.get("name") ?? "").trim();
-
-//   const code = String(formData.get("code") ?? "").trim();
-
-//   if (!id || !name) {
-//     return {
-//       error: "Subject name is required.",
-//     };
-//   }
-
-//   const { error } = await current.client
-//     .from("subjects")
-//     .update({
-//       name,
-//       code: code || null,
-//       updated_at: new Date().toISOString(),
-//     })
-//     .eq("id", id)
-//     .eq("school_id", current.schoolId);
-
-//   if (error) {
-//     console.error("Update subject error:", error);
-
-//     if (error.code === "23505") {
-//       return {
-//         error: "Another subject with this name already exists.",
-//       };
-//     }
-
-//     return {
-//       error: "Failed to update subject.",
-//     };
-//   }
-
-//   revalidatePath("/school/subjects");
-//   revalidatePath("/school/dashboard");
-
-//   if (requestedSchoolId) {
-//     revalidatePath(`/platform/schools/${requestedSchoolId}`);
-//     revalidatePath(`/platform/schools/${requestedSchoolId}/subjects`);
-//   }
-
-//   return {
-//     success: true,
-//   };
-// }
-
-// export async function deleteSubject(id: string, schoolId?: string) {
-//   const current = await getSubjectContext(schoolId);
-
-//   if (!current.success) {
-//     return {
-//       error: current.error,
-//     };
-//   }
-
-//   if (!id) {
-//     return {
-//       error: "Subject ID is required.",
-//     };
-//   }
-
-//   const { error } = await current.client
-//     .from("subjects")
-//     .delete()
-//     .eq("id", id)
-//     .eq("school_id", current.schoolId);
-
-//   if (error) {
-//     console.error("Delete subject error:", error);
-
-//     return {
-//       error:
-//         "Failed to delete subject. It may already be used by other records.",
-//     };
-//   }
-
-//   revalidatePath("/school/subjects");
-
-//   if (schoolId) {
-//     revalidatePath(`/platform/schools/${schoolId}`);
-//     revalidatePath(`/platform/schools/${schoolId}/subjects`);
-//   }
-
-//   return {
-//     success: true,
-//   };
-// }
-
 "use server";
 
 import { revalidatePath } from "next/cache";
 
 import { getManagementContext } from "@/lib/auth/get-management-context";
 
-/* =========================================================
-   GET SUBJECTS
-========================================================= */
+/* GET SUBJECTS */
 
 export async function getSubjects(requestedSchoolId?: string | null) {
   try {
@@ -286,9 +52,7 @@ export async function getSubjects(requestedSchoolId?: string | null) {
   }
 }
 
-/* =========================================================
-   CREATE SUBJECT
-========================================================= */
+/* CREATE SUBJECT */
 
 export async function createSubject(formData: FormData) {
   try {
@@ -371,9 +135,7 @@ export async function createSubject(formData: FormData) {
   }
 }
 
-/* =========================================================
-   UPDATE SUBJECT
-========================================================= */
+/* UPDATE SUBJECT */
 
 export async function updateSubject(formData: FormData) {
   try {
@@ -477,9 +239,7 @@ export async function updateSubject(formData: FormData) {
   }
 }
 
-/* =========================================================
-   DELETE SUBJECT
-========================================================= */
+/* DELETE SUBJECT */
 
 export async function deleteSubject(id: string, requestedSchoolId?: string) {
   try {

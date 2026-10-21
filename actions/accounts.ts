@@ -27,10 +27,7 @@ export async function createSchoolAccount(input: CreateAccountInput) {
     };
   }
 
-  /*
-   * Only Super Admins and School Admins can create
-   * school accounts.
-   */
+  /* Only Super Admins and School Admins can create school accounts. */
   if (
     currentUser.role !== "super_admin" &&
     currentUser.role !== "school_admin"
@@ -48,10 +45,7 @@ export async function createSchoolAccount(input: CreateAccountInput) {
     };
   }
 
-  /*
-   * School Admins can only create accounts
-   * inside their own school.
-   */
+  /* School Admins can only create accounts inside their own school. */
   if (
     currentUser.role === "school_admin" &&
     currentUser.schoolId !== input.schoolId
@@ -84,9 +78,7 @@ export async function createSchoolAccount(input: CreateAccountInput) {
 
   const admin = createAdminClient();
 
-  /*
-   * Confirm that the school exists.
-   */
+  /* Confirm that the school exists. */
   const { data: school, error: schoolError } = await admin
     .from("schools")
     .select("id, name")
@@ -102,9 +94,7 @@ export async function createSchoolAccount(input: CreateAccountInput) {
     };
   }
 
-  /*
-   * Create the Supabase Auth account.
-   */
+  /* Create the Auth account. */
   const { data: authData, error: authError } =
     await admin.auth.admin.createUser({
       email,
@@ -116,15 +106,6 @@ export async function createSchoolAccount(input: CreateAccountInput) {
         phone,
       },
     });
-
-//   if (authError || !authData.user) {
-//     console.error("Create account auth error:", authError);
-
-//     return {
-//       success: false,
-//       error: authError?.message || "Unable to create login account.",
-//     };
-//   }
 
 if (authError || !authData.user) {
   console.error("========== CREATE ACCOUNT: AUTH FAILED ==========");
@@ -142,26 +123,13 @@ if (authError || !authData.user) {
 
   const userId = authData.user.id;
 
-  /*
-   * Create profile.
-   */
+  /* Create profile. */
   const { error: profileError } = await admin.from("profiles").upsert({
     id: userId,
     first_name: firstName,
     last_name: lastName,
     phone,
   });
-
-//   if (profileError) {
-//     console.error("Create account profile error:", profileError);
-
-//     await admin.auth.admin.deleteUser(userId);
-
-//     return {
-//       success: false,
-//       error: "Unable to create the user profile.",
-//     };
-//   }
 
 if (profileError) {
   console.error("========== CREATE ACCOUNT: PROFILE FAILED ==========");
@@ -177,9 +145,7 @@ if (profileError) {
   };
 }
 
-  /*
-   * Assign the user to the school.
-   */
+  /* Assign the user to the school. */
   const { error: membershipError } = await admin
     .from("school_memberships")
     .insert({
@@ -187,24 +153,6 @@ if (profileError) {
       school_id: input.schoolId,
       role: input.role,
     });
-
-//   if (membershipError) {
-//     console.error(
-//       "Create account membership error:",
-//       membershipError,
-//     );
-
-//     await admin.from("profiles").delete().eq("id", userId);
-
-//     await admin.auth.admin.deleteUser(userId);
-
-//     return {
-//       success: false,
-//       error:
-//         membershipError.message ||
-//         "Unable to assign the user to the school.",
-//     };
-//   }
 
 if (membershipError) {
   console.error("========== CREATE ACCOUNT: MEMBERSHIP FAILED ==========");
@@ -223,10 +171,7 @@ if (membershipError) {
   };
 }
 
-  /*
-   * Teachers need a teacher record connected
-   * directly to their Auth user.
-   */
+  /* Teacher record connected directly to their Auth user. */
   if (input.role === "teacher") {
     const { error: teacherError } = await admin.from("teachers").insert({
       school_id: input.schoolId,
@@ -237,36 +182,6 @@ if (membershipError) {
       phone,
       status: "active",
     });
-
-    // if (teacherError) {
-    //   console.error(
-    //     "Create teacher record error:",
-    //     teacherError,
-    //   );
-
-    //   /*
-    //    * Roll everything back.
-    //    */
-    //   await admin
-    //     .from("school_memberships")
-    //     .delete()
-    //     .eq("user_id", userId)
-    //     .eq("school_id", input.schoolId);
-
-    //   await admin
-    //     .from("profiles")
-    //     .delete()
-    //     .eq("id", userId);
-
-    //   await admin.auth.admin.deleteUser(userId);
-
-    //   return {
-    //     success: false,
-    //     error:
-    //       teacherError.message ||
-    //       "Unable to create teacher record.",
-    //   };
-    // }
 
     if (teacherError) {
       console.error("========== CREATE ACCOUNT: TEACHER FAILED ==========");
@@ -295,25 +210,16 @@ if (membershipError) {
     }
   }
 
-  /*
-   * Accountants can later receive their own
-   * accountant record here if required.
-   */
+  /* Accountants record here. */
   if (input.role === "accountant") {
-    // Accountant-specific record can be added here.
+    // Accountant-specific record will be added here.
   }
 
-  /*
-   * Parents can later receive their own
-   * parent record here if required.
-   */
   if (input.role === "parent") {
-    // Parent-specific record can be added here.
+    // Parent-specific record will be added here.
   }
 
-  /*
-   * Refresh relevant pages.
-   */
+  /* Refresh relevant pages */
   revalidatePath("/school/dashboard");
   revalidatePath("/school/teachers");
   revalidatePath("/school/accountants");

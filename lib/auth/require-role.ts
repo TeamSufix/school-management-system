@@ -1,28 +1,8 @@
-// import { redirect } from "next/navigation";
-// import { getCurrentRole } from "@/lib/auth/roles";
-// import type { UserRole } from "@/types/auth";
-
-// export async function requireRole(allowedRoles: UserRole[]) {
-//   const role = await getCurrentRole();
-
-//   if (!role) {
-//     redirect("/login");
-//   }
-
-//   if (!allowedRoles.includes(role)) {
-//     redirect("/login");
-//   }
-
-//   return role;
-// }
-
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/get-user";
 import type { UserRole } from "@/lib/auth/get-user";
 
-/**
- * Require an authenticated user.
- */
+/* Require an authenticated user. */
 export async function requireUser() {
   const user = await getCurrentUser();
 
@@ -33,9 +13,7 @@ export async function requireUser() {
   return user;
 }
 
-/**
- * Require one of the supplied application roles.
- */
+/* Require one of the supplied application roles. */
 export async function requireRole(allowedRoles: UserRole[]) {
   const user = await requireUser();
 
@@ -64,30 +42,22 @@ export async function requireSchoolUser() {
   return user;
 }
 
-/**
- * Require school admin.
- */
+/* Require school admin. */
 export async function requireSchoolAdmin() {
   return requireRole(["school_admin"]);
 }
 
-/**
- * Require teacher.
- */
+/* Require teacher.*/
 export async function requireTeacher() {
   return requireRole(["teacher"]);
 }
 
-/**
- * Require accountant.
- */
+/* Require accountant. */
 export async function requireAccountant() {
   return requireRole(["accountant"]);
 }
 
-/**
- * Require super admin.
- */
+/* Require super admin. */
 export async function requireSuperAdmin() {
   return requireRole(["super_admin"]);
 }

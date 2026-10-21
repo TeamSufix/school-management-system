@@ -232,9 +232,6 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
 
   return (
     <div className="space-y-8">
-      {/* =====================================================
-          HISTORY
-      ===================================================== */}
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-6 py-5">
@@ -334,10 +331,7 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
         )}
       </section>
 
-      {/* =====================================================
-          ADD ATTENDANCE
-      ===================================================== */}
-
+ 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-6 py-5">
           <h2 className="text-lg font-semibold text-slate-900">

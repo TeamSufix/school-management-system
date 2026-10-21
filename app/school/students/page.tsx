@@ -75,9 +75,7 @@ export default async function StudentsPage({ searchParams }: Props) {
 
   return (
     <main className="mx-auto max-w-7xl px-5 py-8 sm:px-6 lg:px-8">
-      {/* =========================================================
-          HEADER
-      ========================================================== */}
+
       <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_20px_60px_-30px_rgba(15,23,42,0.2)]">
         <div className="absolute -right-10 -top-16 h-56 w-56 rounded-full bg-green-100/70 blur-3xl" />
 
@@ -158,9 +156,6 @@ export default async function StudentsPage({ searchParams }: Props) {
         </div>
       </section>
 
-      {/* =========================================================
-          CONTENT
-      ========================================================== */}
       <div className="mt-6 grid gap-6 lg:grid-cols-[360px_1fr]">
         {/* Create */}
         {current.role === "school_admin" && (

@@ -50,13 +50,8 @@ export default async function ParentDashboard() {
 
   return (
     <main className="min-h-screen bg-[#f6f8f7]">
-      {/* =====================================================
-          TOP BAR
-      ====================================================== */}
-
       <header className="border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 sm:px-8">
-          {/* Brand */}
 
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-green-700 text-sm font-black text-white shadow-md shadow-green-600/20">
@@ -75,7 +70,6 @@ export default async function ParentDashboard() {
           </div>
 
           {/* Right */}
-
           <div className="flex items-center gap-3">
             <div className="hidden items-center gap-2 rounded-full bg-green-50 px-3 py-1.5 sm:flex">
               <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
@@ -93,10 +87,6 @@ export default async function ParentDashboard() {
           </div>
         </div>
       </header>
-
-      {/* =====================================================
-          CONTENT
-      ====================================================== */}
 
       <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:py-10">
         {/* Hero */}
@@ -157,9 +147,7 @@ export default async function ParentDashboard() {
           </div>
         </section>
 
-        {/* =====================================================
-            CHILDREN
-        ====================================================== */}
+        {/* CHILDREN */}
 
         <section className="mt-8">
           <div className="mb-5 flex items-end justify-between">
@@ -243,10 +231,6 @@ export default async function ParentDashboard() {
   );
 }
 
-/* ============================================================
-   CHILD CARD
-============================================================ */
-
 function ChildCard({
   student,
   relationship,
@@ -263,7 +247,6 @@ function ChildCard({
 }) {
   return (
     <div className="group overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-green-200 hover:shadow-md">
-      {/* Card Header */}
 
       <div className="border-b border-slate-100 p-6">
         <div className="flex items-start gap-4">
@@ -294,7 +277,6 @@ function ChildCard({
         </div>
       </div>
 
-      {/* Details */}
 
       <div className="grid grid-cols-2 gap-px bg-slate-100">
         <InfoItem label="Gender" value={student.gender || "Not provided"} />
@@ -312,9 +294,6 @@ function ChildCard({
   );
 }
 
-/* ============================================================
-   INFO ITEM
-============================================================ */
 
 function InfoItem({ label, value }: { label: string; value: string }) {
   return (
@@ -327,10 +306,6 @@ function InfoItem({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-
-/* ============================================================
-   HELPERS
-============================================================ */
 
 function getInitials(firstName?: string | null, lastName?: string | null) {
   const first = firstName?.trim()?.charAt(0) ?? "";

@@ -38,9 +38,7 @@ export async function linkStudentToParent(input: {
 
   const admin = createAdminClient();
 
-  /*
-   * Get the parent membership.
-   */
+  /* Get the parent membership. */
   const { data: parentMembership, error: parentError } = await admin
     .from("school_memberships")
     .select("user_id, school_id, role")
@@ -57,9 +55,7 @@ export async function linkStudentToParent(input: {
     };
   }
 
-  /*
-   * Get the student.
-   */
+  /* Get the student. */
   const { data: student, error: studentError } = await admin
     .from("students")
     .select("id, school_id, first_name, last_name")
@@ -75,10 +71,7 @@ export async function linkStudentToParent(input: {
     };
   }
 
-  /*
-   * Make sure parent and student belong
-   * to the same school.
-   */
+  /* Parent and student belong to the same school. */
   if (parentMembership.school_id !== student.school_id) {
     return {
       success: false,
@@ -86,10 +79,7 @@ export async function linkStudentToParent(input: {
     };
   }
 
-  /*
-   * School Admin can only work inside
-   * their own school.
-   */
+  /* School Admin can only work inside their own school. */
   if (
     currentUser.role === "school_admin" &&
     currentUser.schoolId !== student.school_id
@@ -100,9 +90,7 @@ export async function linkStudentToParent(input: {
     };
   }
 
-  /*
-   * Create the relationship.
-   */
+  /* Create the relationship between student and parent. */
   const { error: linkError } = await admin
     .from("student_parents")
     .insert({

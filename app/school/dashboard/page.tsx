@@ -15,9 +15,7 @@ export default async function SchoolDashboard() {
 
   const supabase = await createClient();
 
-  // =========================================================
   // TEACHER
-  // =========================================================
 
   if (role === "teacher") {
     const teacherLinks = [
@@ -65,9 +63,7 @@ export default async function SchoolDashboard() {
     );
   }
 
-  // =========================================================
   // ACCOUNTANT
-  // =========================================================
 
   if (role === "accountant") {
     const { count: paymentCount } = await supabase
@@ -147,9 +143,7 @@ export default async function SchoolDashboard() {
     );
   }
 
-  // =========================================================
   // SCHOOL ADMIN
-  // =========================================================
 
   if (role !== "school_admin") {
     redirect("/login");
@@ -364,9 +358,6 @@ export default async function SchoolDashboard() {
   );
 }
 
-/* ============================================================
-   HERO
-============================================================ */
 
 function DashboardHero({
   eyebrow,
@@ -410,9 +401,6 @@ function DashboardHero({
   );
 }
 
-/* ============================================================
-   DASHBOARD CARD
-============================================================ */
 
 function DashboardCard({
   title,
@@ -451,9 +439,6 @@ function DashboardCard({
   );
 }
 
-/* ============================================================
-   ICON
-============================================================ */
 
 function DashboardIcon({ type }: { type: string }) {
   if (type === "student") {

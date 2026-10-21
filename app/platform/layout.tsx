@@ -12,9 +12,7 @@ export default async function PlatformLayout({
 
   return (
     <div className="min-h-screen bg-[#f6f8f7] text-slate-900">
-      {/* =====================================================
-          DESKTOP SIDEBAR
-      ====================================================== */}
+      {/* DESKTOP SIDEBAR */}
 
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[260px] border-r border-white/10 bg-[#07130d] text-white lg:flex lg:flex-col">
         {/* Brand */}
@@ -108,9 +106,6 @@ export default async function PlatformLayout({
         </div>
       </aside>
 
-      {/* =====================================================
-          MAIN
-      ====================================================== */}
 
       <div className="lg:pl-[260px]">
         {/* TOP BAR */}
@@ -177,9 +172,6 @@ export default async function PlatformLayout({
   );
 }
 
-/* ============================================================
-   SIDEBAR LINK
-============================================================ */
 
 function SidebarLink({
   href,
@@ -204,9 +196,6 @@ function SidebarLink({
   );
 }
 
-/* ============================================================
-   ICONS
-============================================================ */
 
 function NavIcon({ type }: { type: "grid" | "school" | "users" | "shield" }) {
   if (type === "grid") {

@@ -65,9 +65,6 @@ export default async function PlatformDashboard() {
 
   return (
     <main className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:px-10">
-      {/* =====================================================
-          HEADER
-      ====================================================== */}
 
       <section className="relative overflow-hidden rounded-[28px] bg-[#07130d] px-6 py-8 text-white shadow-xl shadow-slate-900/5 sm:px-8 sm:py-10">
         {/* Decorative shapes */}
@@ -109,9 +106,6 @@ export default async function PlatformDashboard() {
         </div>
       </section>
 
-      {/* =====================================================
-          STATS
-      ====================================================== */}
 
       <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat) => (
@@ -124,10 +118,6 @@ export default async function PlatformDashboard() {
           />
         ))}
       </section>
-
-      {/* =====================================================
-          MAIN CONTENT
-      ====================================================== */}
 
       <section className="mt-8 grid gap-6 lg:grid-cols-[1.5fr_0.8fr]">
         {/* Recent Schools */}
@@ -255,9 +245,6 @@ export default async function PlatformDashboard() {
         </div>
       </section>
 
-      {/* =====================================================
-          QUICK ACTIONS
-      ====================================================== */}
 
       <section className="mt-8">
         <div className="mb-4">
@@ -297,10 +284,6 @@ export default async function PlatformDashboard() {
   );
 }
 
-/* ============================================================
-   STAT CARD
-============================================================ */
-
 function StatCard({
   label,
   value,
@@ -335,9 +318,6 @@ function StatCard({
   );
 }
 
-/* ============================================================
-   SUMMARY ROW
-============================================================ */
 
 function SummaryRow({ label, value }: { label: string; value: number }) {
   return (
@@ -351,9 +331,6 @@ function SummaryRow({ label, value }: { label: string; value: number }) {
   );
 }
 
-/* ============================================================
-   QUICK ACTION
-============================================================ */
 
 function QuickAction({
   href,
@@ -390,9 +367,6 @@ function QuickAction({
   );
 }
 
-/* ============================================================
-   STATUS
-============================================================ */
 
 function StatusBadge({ status }: { status: string | null }) {
   const active = status === "active";
@@ -408,9 +382,6 @@ function StatusBadge({ status }: { status: string | null }) {
   );
 }
 
-/* ============================================================
-   ICONS
-============================================================ */
 
 function SmallIcon({ type }: { type: string }) {
   if (type === "school") {
