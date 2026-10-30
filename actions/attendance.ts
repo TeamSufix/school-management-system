@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { getManagementContext } from "@/lib/auth/get-management-context";
 import { canAccessTeachingScope } from "@/lib/auth/teacher-scope";
+import { notifyStudentAndParents } from "@/lib/notifications/fanout";
 
 import { isCalendarDate, validateAttendanceBatch, type AttendanceStatus } from "@/lib/academics/attendance";
 
@@ -417,7 +418,7 @@ export async function saveAttendance(
 
     const { data: schoolClass, error: classError } = await context.client
       .from("classes")
-      .select("id")
+      .select("id, name")
       .eq("id", classId)
       .eq("school_id", context.schoolId)
       .maybeSingle();
@@ -490,6 +491,21 @@ export async function saveAttendance(
         success: false,
         error: error.message || "Failed to save attendance.",
       };
+    }
+
+    const flagged = records.filter((record) => record.status === "absent" || record.status === "late");
+    if (flagged.length) {
+      const statusLabel = new Map<string, string[]>();
+      for (const record of flagged) statusLabel.set(record.status, [...(statusLabel.get(record.status) ?? []), record.student_id]);
+      for (const [status, ids] of statusLabel) {
+        await notifyStudentAndParents(
+          context.client,
+          context.schoolId,
+          [...new Set(ids)],
+          `Marked ${status} on ${records[0].date}`,
+          `${schoolClass.name ?? "Your class"}: attendance recorded as ${status} for ${records[0].date}.`,
+        );
+      }
     }
 
     revalidatePath("/school/attendance");

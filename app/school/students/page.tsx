@@ -6,6 +6,7 @@ import { getCurrentSchool } from "@/lib/auth/get-user";
 
 import CreateStudentForm from "@/components/school/CreateStudentForm";
 import StudentActions from "@/components/school/StudentActions";
+import BulkTools from "@/components/school/BulkTools";
 
 type Props = {
   searchParams: Promise<{
@@ -330,6 +331,8 @@ export default async function StudentsPage({ searchParams }: Props) {
           </div>
         </section>
       </div>
+
+      {current.role === "school_admin" && <BulkTools />}
     </main>
   );
 }

@@ -8,6 +8,7 @@ import {
   getAttendanceHistory,
   getAttendanceStudents,
   saveAttendance,
+  type AttendanceRecord,
   type AttendanceStatus,
 } from "@/actions/attendance";
 
@@ -65,6 +66,18 @@ function statusLabel(status: AttendanceStatus) {
   return "Late";
 }
 
+const QUEUE_KEY = "schoolms-attendance-queue";
+
+function readQueue(): AttendanceRecord[][] {
+  try {
+    const raw = localStorage.getItem(QUEUE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function AttendanceForm({ classes, schoolId }: Props) {
   const [classId, setClassId] = useState("");
 
@@ -89,6 +102,46 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
 
   const [date, setDate] = useState(todayDate);
   const [recordedStudents, setRecordedStudents] = useState<string[]>([]);
+  const [queuedBatches, setQueuedBatches] = useState<AttendanceRecord[][]>(readQueue);
+
+  function writeQueue(batches: AttendanceRecord[][]) {
+    try {
+      if (batches.length) localStorage.setItem(QUEUE_KEY, JSON.stringify(batches));
+      else localStorage.removeItem(QUEUE_KEY);
+    } catch {
+      // Storage unavailable; the in-memory copy still tracks the queue.
+    }
+    setQueuedBatches(batches);
+  }
+
+  async function flushQueue() {
+    const batches = readQueue();
+    if (!batches.length) return;
+    const remaining: AttendanceRecord[][] = [];
+    let flushed = 0;
+    for (const batch of batches) {
+      try {
+        const result = await saveAttendance(batch, schoolId);
+        if (result.success) flushed += batch.length;
+        else remaining.push(batch);
+      } catch {
+        remaining.push(batch);
+      }
+    }
+    writeQueue(remaining);
+    if (flushed) {
+      setSuccess(`Synced ${flushed} queued attendance record${flushed === 1 ? "" : "s"}.`);
+      await loadHistory();
+    }
+  }
+
+  useEffect(() => {
+    const online = () => { void flushQueue(); };
+    window.addEventListener("online", online);
+    if (navigator.onLine) queueMicrotask(() => void flushQueue());
+    return () => window.removeEventListener("online", online);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function loadHistory() {
     setLoadingHistory(true);
@@ -188,6 +241,7 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
     setSaving(true);
 
     try {
+      if (typeof navigator !== "undefined" && !navigator.onLine) throw new Error("offline");
       const result = await saveAttendance(records, schoolId);
       if (!result.success) {
         setError(result.error ?? "Failed to save attendance.");
@@ -197,7 +251,9 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
       setRecordedStudents((current) => [...new Set([...current, ...records.map((record) => record.student_id)])]);
       await loadHistory();
     } catch {
-      setError("Unable to save attendance. Please try again.");
+      writeQueue([...readQueue(), records]);
+      setRecordedStudents((current) => [...new Set([...current, ...records.map((record) => record.student_id)])]);
+      setSuccess("You appear to be offline. Attendance was saved on this device and will sync automatically when you reconnect.");
     } finally {
       setSaving(false);
     }
@@ -205,6 +261,23 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
 
   return (
     <div className="space-y-8">
+
+      {queuedBatches.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <p>
+            <strong>{queuedBatches.flat().length}</strong> attendance record
+            {queuedBatches.flat().length === 1 ? "" : "s"} saved offline on this
+            device will sync when you reconnect.
+          </p>
+          <button
+            type="button"
+            onClick={() => void flushQueue()}
+            className="rounded-lg bg-amber-600 px-3 py-1.5 font-semibold text-white"
+          >
+            Sync now
+          </button>
+        </div>
+      )}
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-6 py-5">

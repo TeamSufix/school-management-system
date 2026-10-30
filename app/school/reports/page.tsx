@@ -33,6 +33,38 @@ export default async function SchoolReportsPage({ searchParams }: { searchParams
     }
     financeRows = [...byPeriod.values()].sort((a, b) => b.academic_year.localeCompare(a.academic_year) || a.term.localeCompare(b.term));
   }
+  const subjectTerms: { subject: string; period: string; average: number; count: number; delta: number | null }[] = [];
+  if (context.role !== "accountant") {
+    const results = await readAllRows(
+      context.client.from("results").select("score, academic_year, term, subjects(name)").eq("school_id", context.schoolId),
+    );
+    const periods = [...new Set(results.map((row) => `${row.academic_year}:${row.term}`))].sort();
+    const latest = periods.at(-1);
+    const previous = periods.at(-2);
+    const byPeriodSubject = new Map<string, { total: number; count: number }>();
+    for (const row of results) {
+      const subject = (Array.isArray(row.subjects) ? row.subjects[0] : row.subjects)?.name ?? "Subject";
+      const key = `${row.academic_year}:${row.term}|${subject}`;
+      const entry = byPeriodSubject.get(key) ?? { total: 0, count: 0 };
+      entry.total += Number(row.score);
+      entry.count += 1;
+      byPeriodSubject.set(key, entry);
+    }
+    for (const period of periods) {
+      const subjects = [...byPeriodSubject.keys()].filter((key) => key.startsWith(`${period}|`)).map((key) => key.split("|")[1]);
+      for (const subject of subjects) {
+        const current = byPeriodSubject.get(`${period}|${subject}`);
+        const avg = current ? current.total / current.count : 0;
+        let delta: number | null = null;
+        if (period === latest && previous) {
+          const prev = byPeriodSubject.get(`${previous}|${subject}`);
+          if (prev) delta = avg - prev.total / prev.count;
+        }
+        subjectTerms.push({ subject, period, average: Math.round(avg * 10) / 10, count: current?.count ?? 0, delta });
+      }
+    }
+  }
+
   const exportBase = schoolId ? `/reports/export?school=${schoolId}` : "/reports/export?";
   const attendanceQuery = `type=attendance${attendance?.selected ? `&class=${attendance.selected}` : ""}${query.from ? `&from=${query.from}` : ""}${query.to ? `&to=${query.to}` : ""}`;
   const schoolQuery = schoolId ? `&school=${schoolId}` : "";
@@ -65,6 +97,33 @@ export default async function SchoolReportsPage({ searchParams }: { searchParams
                 <tr key={row.student_id} className="border-b"><td className="p-2">{row.first_name} {row.last_name}</td><td className="p-2">{row.present}</td><td className="p-2">{row.absent}</td><td className="p-2">{row.late}</td><td className="p-2">{row.excused}</td><td className="p-2">{row.rate}%</td></tr>
               ))}
               {!attendance.rows.length && <tr><td className="p-2" colSpan={6}>No attendance recorded for this filter.</td></tr>}
+            </tbody>
+          </table>
+        </section>
+      )}
+      {context.role !== "accountant" && (
+        <section className="space-y-4">
+          <h2 className="text-xl font-bold">Academic trend — term over term</h2>
+          <p className="text-sm text-slate-500">Average result score per subject for each academic period. The change column compares the latest period with the previous one.</p>
+          <table className="w-full text-left text-sm">
+            <thead><tr className="border-b"><th className="p-2">Period</th><th className="p-2">Subject</th><th className="p-2">Results</th><th className="p-2">Average</th><th className="p-2">Change</th></tr></thead>
+            <tbody>
+              {subjectTerms.map((row) => (
+                <tr key={`${row.period}|${row.subject}`} className="border-b">
+                  <td className="p-2">{row.period.replace(":", " · ").replace("_", " ")}</td>
+                  <td className="p-2">{row.subject}</td>
+                  <td className="p-2">{row.count}</td>
+                  <td className="p-2">{row.average}%</td>
+                  <td className="p-2">
+                    {row.delta === null ? "—" : (
+                      <span className={row.delta >= 0 ? "font-semibold text-green-700" : "font-semibold text-red-700"}>
+                        {row.delta >= 0 ? "+" : ""}{row.delta.toFixed(1)}%
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {!subjectTerms.length && <tr><td className="p-2" colSpan={5}>No results recorded yet.</td></tr>}
             </tbody>
           </table>
         </section>

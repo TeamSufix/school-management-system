@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getStudentReport, getReportAcademicPeriod } from "@/lib/reports/data";
 import { calculateGrade } from "@/lib/academics/grades";
 import PrintButton from "@/components/school/PrintButton";
+import ReportRemarksForm from "@/components/school/ReportRemarksForm";
 
 export default async function StudentReportPage({ params, searchParams }: {
   params: Promise<{ id: string }>;
@@ -33,11 +34,20 @@ export default async function StudentReportPage({ params, searchParams }: {
       </form>
       <header className="border-b-2 border-green-700 pb-6 text-center"><h1 className="text-3xl font-bold">{report.school.name}</h1><p>{report.school.address}</p><p>{report.school.phone} {report.school.email}</p><h2 className="mt-4 text-2xl font-semibold">Student Report Card</h2><p>{year} · {term.replace("term_", "Term ")}</p></header>
       <section className="grid gap-3 sm:grid-cols-2"><p><strong>Student:</strong> {report.student.first_name} {report.student.last_name}</p><p><strong>Student ID:</strong> {report.student.student_id}</p><p><strong>Recorded class:</strong> {classes.join(", ") || "No results recorded"}</p><p><strong>Generated:</strong> {new Date().toISOString().slice(0, 10)}</p></section>
-      <table className="w-full text-left"><thead><tr className="border-b"><th className="p-3">Subject</th><th className="p-3">Score / 100</th><th className="p-3">Grade</th></tr></thead><tbody>{report.results.map((result) => {
+      <table className="w-full text-left"><thead><tr className="border-b"><th className="p-3">Subject</th><th className="p-3">Score / 100</th><th className="p-3">Class average</th><th className="p-3">Grade</th></tr></thead><tbody>{report.results.map((result) => {
         const subject = Array.isArray(result.subjects) ? result.subjects[0] : result.subjects;
-        return <tr key={result.id} className="border-b"><td className="p-3">{subject?.name ?? "Subject unavailable"}</td><td className="p-3">{result.score}</td><td className="p-3">{result.grade}</td></tr>;
+        const subjectAverage = report.classStats.subjectAverages.get(result.subject_id);
+        return <tr key={result.id} className="border-b"><td className="p-3">{subject?.name ?? "Subject unavailable"}</td><td className="p-3">{result.score}</td><td className="p-3">{subjectAverage === undefined ? "—" : subjectAverage.toFixed(1)}</td><td className="p-3">{result.grade}</td></tr>;
       })}</tbody></table>
-      {!report.results.length ? <p>No results recorded for this period.</p> : <section className="rounded-xl bg-slate-50 p-5"><p>Subjects recorded: {report.results.length}</p><p>Total: {total.toFixed(2)} / {report.results.length * 100}</p><p>Average: {average?.toFixed(2)}% · Grade: {calculateGrade(average ?? 0)}</p></section>}
+      {!report.results.length ? <p>No results recorded for this period.</p> : <section className="rounded-xl bg-slate-50 p-5"><p>Subjects recorded: {report.results.length}</p><p>Total: {total.toFixed(2)} / {report.results.length * 100}</p><p>Average: {average?.toFixed(2)}% · Grade: {calculateGrade(average ?? 0)}</p>{report.classStats.position !== null && <p className="font-semibold">Class position: {report.classStats.position} of {report.classStats.classSize}</p>}</section>}
+      {report.attendanceSummary && <section className="rounded-xl bg-slate-50 p-5"><h3 className="mb-1 font-semibold">Term attendance</h3><p className="text-sm text-slate-600">Present {report.attendanceSummary.present} · Absent {report.attendanceSummary.absent} · Late {report.attendanceSummary.late} · Excused {report.attendanceSummary.excused}</p></section>}
+      {report.remarks && (report.remarks.class_teacher_remark || report.remarks.head_teacher_remark) && (
+        <section className="rounded-xl border border-slate-200 p-5">
+          {report.remarks.class_teacher_remark && <p className="text-sm"><strong>Class teacher:</strong> {report.remarks.class_teacher_remark}</p>}
+          {report.remarks.head_teacher_remark && <p className="mt-2 text-sm"><strong>Head teacher:</strong> {report.remarks.head_teacher_remark}</p>}
+        </section>
+      )}
+      <ReportRemarksForm studentId={id} year={year} term={term} schoolId={schoolId} remarks={report.remarks} />
       {!!report.assessments.length && <section><h3 className="mb-2 text-lg font-semibold">Assessment breakdown</h3><table className="w-full text-left"><thead><tr className="border-b"><th className="p-3">Assessment</th><th className="p-3">Subject</th><th className="p-3">Type</th><th className="p-3">Score</th><th className="p-3">Weighted</th></tr></thead><tbody>{report.assessments.map((assessment) => (
         <tr key={assessment.id} className="border-b"><td className="p-3">{assessment.name}</td><td className="p-3">{assessment.subject}</td><td className="p-3">{assessment.assessment_type.replaceAll("_", " ")}</td><td className="p-3">{assessment.score === null ? "—" : `${assessment.score} / ${assessment.max_score}`}</td><td className="p-3">{assessment.contribution === null ? "—" : `${assessment.contribution.toFixed(2)} / ${assessment.weight}`}</td></tr>
       ))}</tbody></table></section>}

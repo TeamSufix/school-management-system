@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { getManagementContext } from "@/lib/auth/get-management-context";
 import { canAccessTeachingScope } from "@/lib/auth/teacher-scope";
+import { notifyStudentAndParents } from "@/lib/notifications/fanout";
 import { calculateGrade } from "@/lib/academics/grades";
 import { validateAcademicPeriod } from "@/lib/academics/period";
 
@@ -433,7 +434,7 @@ export async function saveResults(records: ResultRecord[], schoolId?: string) {
 
     const { data: subject, error: subjectError } = await context.client
       .from("subjects")
-      .select("id")
+      .select("id, name")
       .eq("id", subjectId)
       .eq("school_id", context.schoolId)
       .maybeSingle();
@@ -509,6 +510,14 @@ export async function saveResults(records: ResultRecord[], schoolId?: string) {
         error: error.message || "Failed to save results.",
       };
     }
+
+    await notifyStudentAndParents(
+      context.client,
+      context.schoolId,
+      studentIds,
+      `${subject.name} results posted`,
+      `${subject.name} results for ${rows[0].academic_year} ${rows[0].term.replace("_", " ")} have been published.`,
+    );
 
     revalidatePath("/school/results");
     revalidatePath("/school/dashboard");
@@ -590,7 +599,9 @@ export async function amendResult(
           id,
           school_id,
           score,
-          grade
+          grade,
+          student_id,
+          subjects(name)
         `,
       )
       .eq("id", record.result_id)
@@ -685,6 +696,16 @@ export async function amendResult(
         error: error.message || "Failed to amend result.",
       };
     }
+
+    const joinedSubjects = (result as unknown as { subjects?: { name: string } | { name: string }[] | null }).subjects;
+    const amendedSubject = (Array.isArray(joinedSubjects) ? joinedSubjects[0]?.name : joinedSubjects?.name) ?? "A subject";
+    await notifyStudentAndParents(
+      context.client,
+      context.schoolId,
+      [(result as { student_id: string }).student_id],
+      `${amendedSubject} result updated`,
+      `A ${amendedSubject} result was corrected from ${oldScore} to ${record.new_score}.`,
+    );
 
     revalidatePath("/school/results");
     revalidatePath("/school/dashboard");

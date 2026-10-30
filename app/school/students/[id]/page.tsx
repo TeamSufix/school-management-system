@@ -130,7 +130,13 @@ export default async function StudentProfilePage({ params }: Props) {
         </div>
       </section>
 
-      {current.role === "school_admin" && <Link href={`/reports/students/${student.id}`} className="mt-6 inline-block rounded-xl bg-green-700 px-5 py-3 font-semibold text-white">View report card</Link>}
+      {current.role === "school_admin" && (
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link href={`/reports/students/${student.id}`} className="rounded-xl bg-green-700 px-5 py-3 font-semibold text-white">View report card</Link>
+          <Link href={`/transcripts/students/${student.id}`} className="rounded-xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-700">Transcript</Link>
+          <Link href={`/id-cards/students/${student.id}`} className="rounded-xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-700">ID card</Link>
+        </div>
+      )}
 
       {/* Information */}
       <section className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_15px_50px_-30px_rgba(15,23,42,0.25)]">

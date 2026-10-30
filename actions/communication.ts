@@ -101,6 +101,28 @@ export async function saveTimetableEntry(form: FormData) {
     return { error: "The selected class or subject does not belong to this school." };
   }
   if (teacherId && (teacher.error || !teacher.data)) return { error: "The selected teacher does not belong to this school." };
+
+  const { data: overlapping } = await context.client
+    .from("timetable_entries")
+    .select("id, class_id, teacher_id, classes(name), subjects(name)")
+    .eq("school_id", context.schoolId)
+    .eq("weekday", weekday)
+    .lt("starts_at", endsAt)
+    .gt("ends_at", startsAt);
+  const conflicts = overlapping ?? [];
+  const classClash = conflicts.find((entry) => entry.class_id === classId);
+  if (classClash) {
+    const other = Array.isArray(classClash.subjects) ? classClash.subjects[0] : classClash.subjects;
+    return { error: `Schedule conflict: this class already has ${other?.name ?? "a lesson"} at that time.` };
+  }
+  if (teacherId) {
+    const teacherClash = conflicts.find((entry) => entry.teacher_id === teacherId);
+    if (teacherClash) {
+      const otherClass = Array.isArray(teacherClash.classes) ? teacherClash.classes[0] : teacherClash.classes;
+      return { error: `Schedule conflict: this teacher is already assigned to ${otherClass?.name ?? "another class"} at that time.` };
+    }
+  }
+
   const result = await context.client.from("timetable_entries").insert({
     school_id: context.schoolId,
     class_id: classId,

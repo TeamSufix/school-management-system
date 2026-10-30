@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getManagementContext } from "@/lib/auth/get-management-context";
 import { canAccessTeachingScope } from "@/lib/auth/teacher-scope";
+import { notifyStudentAndParents } from "@/lib/notifications/fanout";
 import { normalizeAcademicYear, isTerm } from "@/lib/academics/period";
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
@@ -177,9 +178,16 @@ export async function gradeSubmission(form: FormData) {
     .update({ score, status: "graded", graded_by: scoped.context.userId, graded_at: new Date().toISOString(), feedback })
     .eq("id", text(form, "submission_id"))
     .eq("assessment_id", scoped.assessment.id)
-    .select("id")
+    .select("id, student_id")
     .maybeSingle();
   if (result.error || !result.data) return { error: result.error?.message || "Submission not found." };
+  await notifyStudentAndParents(
+    scoped.context.client,
+    scoped.context.schoolId,
+    [result.data.student_id],
+    "Your submission was graded",
+    `Your submission was graded: ${score}/${scoped.assessment.max_score}.${feedback ? ` Feedback: ${feedback}` : ""}`,
+  );
   revalidatePath("/school/assessments");
   revalidatePath("/student/assessments");
   return { success: true };

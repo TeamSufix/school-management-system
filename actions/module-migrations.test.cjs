@@ -151,6 +151,52 @@ test("student portal migration auto-grades quizzes and syncs scores", async () =
   );
 });
 
+test("report enhancements migration stores one remark set per term", async () => {
+  const db = new PGlite();
+  await fixture(db);
+  await db.exec(`
+    create table results (id uuid primary key, school_id uuid, student_id uuid, class_id uuid, subject_id uuid, score numeric);
+    create policy sms_school_read_guard on schools as restrictive for select using (true);
+    create policy sms_catalog_read_guard on classes as restrictive for select using (true);
+    create policy sms_catalog_read_guard on subjects as restrictive for select using (true);
+    create policy sms_student_read_guard on students as restrictive for select using (true);
+    create policy sms_attendance_read_guard on attendance as restrictive for select using (true);
+    create policy sms_result_read_guard on results as restrictive for select using (true);
+    create policy sms_fee_read_guard on fees as restrictive for select using (true);
+    create policy sms_payment_read_guard on payments as restrictive for select using (true);
+    alter table schools enable row level security;
+    alter table classes enable row level security;
+    alter table subjects enable row level security;
+    alter table students enable row level security;
+    alter table attendance enable row level security;
+    alter table results enable row level security;
+    alter table fees enable row level security;
+    alter table payments enable row level security;
+    create function public.sms_is_linked_parent(uuid, uuid) returns boolean language sql stable security definer set search_path = '' as $$ select false $$;
+    create policy memberships_guard on school_memberships for all using (true) with check (true);
+    alter table school_memberships enable row level security;
+  `);
+  await db.exec(migration("202610290005_academic_structure.sql"));
+  await db.exec(migration("202610290006_assessments.sql"));
+  await db.exec(migration("202610290008_communication.sql"));
+  await db.exec(migration("202610290009_student_portal.sql"));
+  await db.exec(migration("202610290010_report_enhancements.sql"));
+
+  await db.query("insert into profiles values ($1)", [id(14)]);
+  await db.query(
+    "insert into student_term_remarks (school_id, student_id, academic_year, term, class_teacher_remark, head_teacher_remark, updated_by) values ($1, $2, '2026/2027', 'term_1', 'Good progress', 'Keep it up', $3)",
+    [id(1), id(41), id(14)],
+  );
+  await assert.rejects(
+    db.query("insert into student_term_remarks (school_id, student_id, academic_year, term, updated_by) values ($1, $2, '2026/2027', 'term_1', $3)", [id(1), id(41), id(14)]),
+    /student_term_remarks_student_id_academic_year_term_key|duplicate key/,
+  );
+  await assert.rejects(
+    db.query("insert into student_term_remarks (school_id, student_id, academic_year, term, updated_by) values ($1, $2, '2026/2027', 'term_4', $3)", [id(1), id(41), id(14)]),
+    /student_term_remarks_term_check/,
+  );
+});
+
 test("finance detail migration adds fee items and payment actor tracking", async () => {
   const db = new PGlite();
   await fixture(db);

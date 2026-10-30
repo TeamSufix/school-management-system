@@ -381,6 +381,19 @@ create table public.timetable_entries (
   unique (school_id, class_id, weekday, starts_at)
 );
 
+create table public.student_term_remarks (
+  id uuid primary key default gen_random_uuid(),
+  school_id uuid not null references public.schools(id) on delete cascade,
+  student_id uuid not null references public.students(id) on delete cascade,
+  academic_year text not null,
+  term text not null check (term in ('term_1', 'term_2', 'term_3')),
+  class_teacher_remark text check (class_teacher_remark is null or length(class_teacher_remark) <= 1000),
+  head_teacher_remark text check (head_teacher_remark is null or length(head_teacher_remark) <= 1000),
+  updated_by uuid references public.profiles(id),
+  updated_at timestamptz not null default now(),
+  unique (student_id, academic_year, term)
+);
+
 -- Indexes ---------------------------------------------------------------------
 
 create index idx_platform_memberships_user_id on public.platform_memberships(user_id);
@@ -407,6 +420,7 @@ create index idx_payments_school on public.payments(school_id);
 create index idx_announcements_school on public.announcements(school_id, publish_on desc);
 create index idx_notifications_user on public.notifications(user_id, read_at);
 create index idx_timetable_class on public.timetable_entries(school_id, class_id);
+create index idx_student_term_remarks_school on public.student_term_remarks(school_id, academic_year, term);
 
 commit;
 

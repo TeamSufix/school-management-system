@@ -33,6 +33,7 @@ alter table public.notifications enable row level security;
 alter table public.timetable_entries enable row level security;
 alter table public.assessment_questions enable row level security;
 alter table public.assessment_submissions enable row level security;
+alter table public.student_term_remarks enable row level security;
 
 -- Identity tables -------------------------------------------------------------
 
@@ -477,6 +478,31 @@ create policy submissions_grade_guard on public.assessment_submissions as restri
   with check (exists (select 1 from public.assessments a where a.id = assessment_id and public.sms_assessment_scope(a.school_id, a.class_id, a.subject_id)));
 create policy submissions_no_delete on public.assessment_submissions as restrictive for delete to authenticated
   using (public.sms_has_school_role(school_id, array['school_admin']));
+
+-- Report-card remarks -----------------------------------------------------------
+
+create policy remarks_read on public.student_term_remarks for select to authenticated
+  using (
+    public.sms_has_school_role(school_id, array['school_admin', 'teacher', 'accountant'])
+    or public.sms_is_linked_parent(school_id, student_id)
+    or public.sms_is_self_student(school_id, student_id)
+  );
+create policy remarks_read_guard on public.student_term_remarks as restrictive for select to authenticated
+  using (
+    public.sms_has_school_role(school_id, array['school_admin', 'teacher', 'accountant'])
+    or public.sms_is_linked_parent(school_id, student_id)
+    or public.sms_is_self_student(school_id, student_id)
+  );
+create policy remarks_write on public.student_term_remarks for all to authenticated
+  using (public.sms_has_school_role(school_id, array['school_admin', 'teacher']))
+  with check (
+    public.sms_has_school_role(school_id, array['school_admin', 'teacher'])
+    and updated_by = auth.uid()
+    and exists (select 1 from public.students st where st.id = student_term_remarks.student_id and st.school_id = student_term_remarks.school_id)
+  );
+create policy remarks_write_guard on public.student_term_remarks as restrictive for all to authenticated
+  using (public.sms_has_school_role(school_id, array['school_admin', 'teacher']))
+  with check (public.sms_has_school_role(school_id, array['school_admin', 'teacher']));
 
 commit;
 
