@@ -203,10 +203,11 @@ create function public.sms_announcement_visible(target_school uuid, target_audie
 returns boolean language sql stable security definer set search_path = ''
 as $$
   select case target_audience
-    when 'all' then public.sms_has_school_role(target_school, array['school_admin', 'teacher', 'accountant', 'parent'])
+    when 'all' then public.sms_has_school_role(target_school, array['school_admin', 'teacher', 'accountant', 'parent', 'student'])
     when 'staff' then public.sms_has_school_role(target_school, array['school_admin', 'teacher', 'accountant'])
     when 'teachers' then public.sms_has_school_role(target_school, array['school_admin', 'teacher'])
     when 'parents' then public.sms_has_school_role(target_school, array['school_admin', 'parent'])
+    when 'students' then public.sms_has_school_role(target_school, array['school_admin', 'student'])
     else false
   end;
 $$;
@@ -237,7 +238,124 @@ begin
 end;
 $$;
 
+create function public.sms_is_self_student(target_school uuid, target_student uuid)
+returns boolean language sql stable security definer set search_path = ''
+as $$
+  select exists (
+    select 1 from public.students st
+    join public.school_memberships sm on sm.user_id = st.user_id and sm.school_id = st.school_id
+    join public.schools s on s.id = st.school_id
+    where st.id = target_student
+      and st.school_id = target_school
+      and st.user_id = auth.uid()
+      and sm.role = 'student'
+      and s.status = 'active'
+  );
+$$;
+
+create function public.sms_self_in_class(target_school uuid, target_class uuid)
+returns boolean language sql stable security definer set search_path = ''
+as $$
+  select exists (
+    select 1 from public.students st
+    where st.user_id = auth.uid()
+      and st.school_id = target_school
+      and st.class_id = target_class
+  );
+$$;
+
+create function public.sms_assessment_questions(target_assessment uuid)
+returns table (id uuid, sort_order integer, prompt text, question_type text, options jsonb, points numeric)
+language sql stable security definer set search_path = ''
+as $$
+  select q.id, q.sort_order, q.prompt, q.question_type, q.options, q.points
+  from public.assessment_questions q
+  join public.assessments a on a.id = q.assessment_id
+  where q.assessment_id = target_assessment
+    and public.sms_self_in_class(a.school_id, a.class_id)
+  order by q.sort_order;
+$$;
+
+create function public.sms_prepare_submission()
+returns trigger language plpgsql set search_path = ''
+as $$
+declare
+  assessment record;
+  question record;
+  auto_score numeric := 0;
+  needs_review boolean := false;
+begin
+  select a.school_id, a.class_id into assessment from public.assessments a where a.id = new.assessment_id;
+  if not found or assessment.school_id <> new.school_id then
+    raise exception 'Submission does not match the assessment';
+  end if;
+  if tg_op = 'INSERT' then
+    if new.submitted_by is distinct from auth.uid() then
+      raise exception 'Submission actor must be the authenticated student' using errcode = '42501';
+    end if;
+    if not exists (
+      select 1 from public.students st
+      where st.id = new.student_id and st.school_id = new.school_id
+        and st.class_id = assessment.class_id and st.user_id = auth.uid()
+    ) then
+      raise exception 'Only the student enrolled in this class can submit' using errcode = '42501';
+    end if;
+    new.submitted_at = clock_timestamp();
+  end if;
+  if new.status = 'graded' and new.score is null then
+    raise exception 'A graded submission requires a score';
+  end if;
+  if tg_op = 'INSERT' then
+    for question in
+      select q.id, q.question_type, q.correct_option, q.points
+      from public.assessment_questions q where q.assessment_id = new.assessment_id
+    loop
+      if question.question_type = 'multiple_choice' then
+        if coalesce(new.answers ->> question.id::text, '') = question.correct_option::text then
+          auto_score = auto_score + question.points;
+        end if;
+      else
+        needs_review = true;
+      end if;
+    end loop;
+    if not needs_review and exists (select 1 from public.assessment_questions q where q.assessment_id = new.assessment_id) then
+      new.score = auto_score;
+      new.status = 'graded';
+      new.graded_at = clock_timestamp();
+    else
+      new.score = null;
+      new.status = 'submitted';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger assessment_submissions_prepare before insert or update on public.assessment_submissions
+  for each row execute function public.sms_prepare_submission();
+
+create function public.sms_sync_submission_score()
+returns trigger language plpgsql security definer set search_path = ''
+as $$
+begin
+  if new.status = 'graded' and new.score is not null
+     and (tg_op = 'INSERT' or old.status is distinct from 'graded' or old.score is distinct from new.score) then
+    insert into public.assessment_scores (school_id, assessment_id, student_id, score, recorded_by)
+    values (new.school_id, new.assessment_id, new.student_id, new.score, coalesce(new.graded_by, new.submitted_by))
+    on conflict (assessment_id, student_id)
+    do update set score = excluded.score, recorded_by = excluded.recorded_by, updated_at = now();
+  end if;
+  return new;
+end;
+$$;
+
+create trigger assessment_submissions_sync_score after insert or update on public.assessment_submissions
+  for each row execute function public.sms_sync_submission_score();
+
 revoke all on function public.sms_has_school_role(uuid, text[]) from public, anon;
+revoke all on function public.sms_is_self_student(uuid, uuid) from public, anon;
+revoke all on function public.sms_self_in_class(uuid, uuid) from public, anon;
+revoke all on function public.sms_assessment_questions(uuid) from public, anon;
 revoke all on function public.sms_is_linked_parent(uuid, uuid) from public, anon;
 revoke all on function public.sms_can_manage_parent_link(uuid, uuid) from public, anon;
 revoke all on function public.sms_teacher_assigned(uuid, uuid, uuid) from public, anon;
@@ -249,6 +367,9 @@ revoke all on function public.sms_branding_access(text, boolean) from public;
 revoke all on function public.sms_record_access(text, boolean) from public;
 
 grant execute on function public.sms_has_school_role(uuid, text[]) to authenticated;
+grant execute on function public.sms_is_self_student(uuid, uuid) to authenticated;
+grant execute on function public.sms_self_in_class(uuid, uuid) to authenticated;
+grant execute on function public.sms_assessment_questions(uuid) to authenticated;
 grant execute on function public.sms_is_linked_parent(uuid, uuid) to authenticated;
 grant execute on function public.sms_can_manage_parent_link(uuid, uuid) to authenticated;
 grant execute on function public.sms_teacher_assigned(uuid, uuid, uuid) to authenticated;

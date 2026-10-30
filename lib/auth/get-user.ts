@@ -7,7 +7,8 @@ export type UserRole =
   | "school_admin"
   | "teacher"
   | "accountant"
-  | "parent";
+  | "parent"
+  | "student";
 
 export type CurrentSchool = {
   id: string;
@@ -106,6 +107,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     "teacher",
     "accountant",
     "parent",
+    "student",
   ];
 
   const role = validSchoolRoles.includes(membership.role as UserRole)

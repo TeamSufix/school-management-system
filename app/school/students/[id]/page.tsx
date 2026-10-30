@@ -6,6 +6,7 @@ import { getCurrentSchool } from "@/lib/auth/get-user";
 import { createAdminClient } from "@/lib/supabase/admin";
 import StudentRecords from "@/components/school/StudentRecords";
 import StudentFileManager from "@/components/school/StudentFileManager";
+import StudentLoginForm from "@/components/school/StudentLoginForm";
 import EnrollmentHistory from "@/components/school/EnrollmentHistory";
 
 type Props = {
@@ -193,6 +194,8 @@ export default async function StudentProfilePage({ params }: Props) {
       </section>
 
       <StudentFileManager studentId={student.id} />
+
+      <StudentLoginForm studentId={student.id} hasLogin={Boolean(student.user_id)} />
 
       <EnrollmentHistory studentId={student.id} />
 

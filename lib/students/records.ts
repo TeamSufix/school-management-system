@@ -9,10 +9,10 @@ import { moneyToCents } from "@/lib/academics/money";
 
 export async function getStudentRecords(studentId: string, requestedSchoolId?: string, view: "all" | "attendance" | "results" | "fees" = "all") {
   const user = await getCurrentUser();
-  if (!user || !["super_admin", "school_admin", "teacher", "accountant", "parent"].includes(user.role ?? "")) return null;
-  if (user.role === "parent" && (!user.schoolId || (requestedSchoolId && requestedSchoolId !== user.schoolId))) return null;
-  const management = user.role === "parent" ? null : await getManagementContext(requestedSchoolId);
-  if (user.role !== "parent" && !management) return null;
+  if (!user || !["super_admin", "school_admin", "teacher", "accountant", "parent", "student"].includes(user.role ?? "")) return null;
+  if ((user.role === "parent" || user.role === "student") && (!user.schoolId || (requestedSchoolId && requestedSchoolId !== user.schoolId))) return null;
+  const management = user.role === "parent" || user.role === "student" ? null : await getManagementContext(requestedSchoolId);
+  if (user.role !== "parent" && user.role !== "student" && !management) return null;
   const schoolId = management?.schoolId ?? user.schoolId;
   if (!schoolId) return null;
   const client = management?.client ?? await createClient();
@@ -21,6 +21,12 @@ export async function getStudentRecords(studentId: string, requestedSchoolId?: s
     if (link.error?.code === "22P02") return null;
     if (link.error) throw new Error("Unable to verify student access.");
     if (!link.data) return null;
+  }
+  if (user.role === "student") {
+    const self = await client.from("students").select("id").eq("id", studentId).eq("user_id", user.id).eq("school_id", schoolId).maybeSingle();
+    if (self.error?.code === "22P02") return null;
+    if (self.error) throw new Error("Unable to verify student access.");
+    if (!self.data) return null;
   }
   const student = await client.from("students").select("id, school_id, class_id, first_name, last_name, student_id").eq("id", studentId).eq("school_id", schoolId).maybeSingle();
   if (student.error?.code === "22P02") return null;

@@ -39,6 +39,9 @@ export async function createAssessment(form: FormData) {
     return { error: "The selected class or subject does not belong to this school." };
   }
   const sessionId = text(form, "session_id") || null;
+  const dueAt = text(form, "due_at");
+  const instructions = text(form, "instructions") || null;
+  if (instructions && instructions.length > 5000) return { error: "Instructions must be 5000 characters or fewer." };
   const result = await context.client.from("assessments").insert({
     school_id: context.schoolId,
     class_id: classId,
@@ -50,6 +53,8 @@ export async function createAssessment(form: FormData) {
     assessment_type: type,
     weight,
     max_score: maxScore,
+    due_at: dueAt ? new Date(dueAt).toISOString() : null,
+    instructions,
     created_by: context.userId,
   });
   if (result.error) {
@@ -87,6 +92,96 @@ export async function saveAssessmentScores(form: FormData) {
   if (result.error) return { error: result.error.message || "Unable to save scores." };
   revalidatePath("/school/assessments");
   revalidatePath(`/platform/schools/${assessment.schoolId}/assessments`);
+  return { success: true };
+}
+
+async function assessmentScope(form: FormData) {
+  const assessmentId = text(form, "assessment_id");
+  const context = await getManagementContext(text(form, "school_id"));
+  if (!context) return null;
+  const found = await context.client.from("assessments").select("id, class_id, subject_id, max_score").eq("id", assessmentId).eq("school_id", context.schoolId).maybeSingle();
+  if (found.error || !found.data) return null;
+  if (!canAccessTeachingScope(context, found.data.class_id, found.data.subject_id)) return null;
+  return { context, assessment: found.data };
+}
+
+export async function addAssessmentQuestion(form: FormData) {
+  const scoped = await assessmentScope(form);
+  if (!scoped) return { error: "You are not assigned to this assessment." };
+  const prompt = text(form, "prompt");
+  const questionType = text(form, "question_type");
+  const points = Number(form.get("points") || 1);
+  if (!prompt || prompt.length > 2000) return { error: "The question must contain 1 to 2000 characters." };
+  if (!["multiple_choice", "short_answer"].includes(questionType)) return { error: "Select a valid question type." };
+  if (!Number.isFinite(points) || points <= 0 || points > 1000) return { error: "Points must be between 0 and 1000." };
+
+  let options: string[] = [];
+  let correctOption: number | null = null;
+  if (questionType === "multiple_choice") {
+    options = text(form, "options").split("\n").map((line) => line.trim()).filter(Boolean).slice(0, 10);
+    correctOption = Number(form.get("correct_option"));
+    if (options.length < 2) return { error: "Enter at least two answer options, one per line." };
+    if (!Number.isInteger(correctOption) || correctOption < 0 || correctOption >= options.length) {
+      return { error: "Select which option is correct." };
+    }
+  }
+
+  const last = await scoped.context.client
+    .from("assessment_questions")
+    .select("sort_order")
+    .eq("assessment_id", scoped.assessment.id)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const result = await scoped.context.client.from("assessment_questions").insert({
+    school_id: scoped.context.schoolId,
+    assessment_id: scoped.assessment.id,
+    sort_order: (last.data?.sort_order ?? 0) + 1,
+    prompt,
+    question_type: questionType,
+    options,
+    correct_option: correctOption,
+    points,
+  });
+  if (result.error) return { error: result.error.message || "Unable to add the question." };
+  revalidatePath("/school/assessments");
+  return { success: true };
+}
+
+export async function deleteAssessmentQuestion(form: FormData) {
+  const scoped = await assessmentScope(form);
+  if (!scoped) return { error: "You are not assigned to this assessment." };
+  const result = await scoped.context.client
+    .from("assessment_questions")
+    .delete()
+    .eq("id", text(form, "question_id"))
+    .eq("assessment_id", scoped.assessment.id)
+    .select("id")
+    .maybeSingle();
+  if (result.error || !result.data) return { error: "Question not found." };
+  revalidatePath("/school/assessments");
+  return { success: true };
+}
+
+export async function gradeSubmission(form: FormData) {
+  const scoped = await assessmentScope(form);
+  if (!scoped) return { error: "You are not assigned to this assessment." };
+  const score = Number(form.get("score"));
+  const feedback = text(form, "feedback") || null;
+  if (!Number.isFinite(score) || score < 0 || score > scoped.assessment.max_score) {
+    return { error: `Score must be between 0 and ${scoped.assessment.max_score}.` };
+  }
+  if (feedback && feedback.length > 2000) return { error: "Feedback must be 2000 characters or fewer." };
+  const result = await scoped.context.client
+    .from("assessment_submissions")
+    .update({ score, status: "graded", graded_by: scoped.context.userId, graded_at: new Date().toISOString(), feedback })
+    .eq("id", text(form, "submission_id"))
+    .eq("assessment_id", scoped.assessment.id)
+    .select("id")
+    .maybeSingle();
+  if (result.error || !result.data) return { error: result.error?.message || "Submission not found." };
+  revalidatePath("/school/assessments");
+  revalidatePath("/student/assessments");
   return { success: true };
 }
 

@@ -31,6 +31,8 @@ alter table public.payments enable row level security;
 alter table public.announcements enable row level security;
 alter table public.notifications enable row level security;
 alter table public.timetable_entries enable row level security;
+alter table public.assessment_questions enable row level security;
+alter table public.assessment_submissions enable row level security;
 
 -- Identity tables -------------------------------------------------------------
 
@@ -60,7 +62,8 @@ begin
     'academic_terms', 'streams', 'students', 'student_parents', 'student_documents',
     'enrollments', 'attendance', 'results', 'result_amendments', 'assessments',
     'assessment_scores', 'fees', 'fee_items', 'payments', 'announcements',
-    'notifications', 'timetable_entries', 'school_academic_settings'
+    'notifications', 'timetable_entries', 'school_academic_settings',
+    'assessment_questions', 'assessment_submissions'
   ] loop
     execute format('create policy sms_base_select on public.%I for select to authenticated using (true)', target_table);
     execute format('create policy sms_base_insert on public.%I for insert to authenticated with check (true)', target_table);
@@ -73,22 +76,22 @@ $$;
 -- Restrictive guards (from rls_hardening) -------------------------------------
 
 create policy sms_school_read_guard on public.schools as restrictive for select to authenticated
-  using (public.sms_has_school_role(id, array['school_admin', 'teacher', 'accountant', 'parent']));
+  using (public.sms_has_school_role(id, array['school_admin', 'teacher', 'accountant', 'parent', 'student']));
 create policy sms_student_read_guard on public.students as restrictive for select to authenticated
-  using (public.sms_has_school_role(school_id, array['school_admin', 'teacher', 'accountant']) or public.sms_is_linked_parent(school_id, id));
+  using (public.sms_has_school_role(school_id, array['school_admin', 'teacher', 'accountant']) or public.sms_is_linked_parent(school_id, id) or user_id = auth.uid());
 create policy sms_attendance_read_guard on public.attendance as restrictive for select to authenticated
-  using (public.sms_has_school_role(school_id, array['school_admin', 'teacher']) or public.sms_is_linked_parent(school_id, student_id));
+  using (public.sms_has_school_role(school_id, array['school_admin', 'teacher']) or public.sms_is_linked_parent(school_id, student_id) or public.sms_is_self_student(school_id, student_id));
 create policy sms_result_read_guard on public.results as restrictive for select to authenticated
-  using (public.sms_has_school_role(school_id, array['school_admin', 'teacher']) or public.sms_is_linked_parent(school_id, student_id));
+  using (public.sms_has_school_role(school_id, array['school_admin', 'teacher']) or public.sms_is_linked_parent(school_id, student_id) or public.sms_is_self_student(school_id, student_id));
 create policy sms_amendment_read_guard on public.result_amendments as restrictive for select to authenticated
   using (
     public.sms_has_school_role(school_id, array['school_admin', 'teacher'])
     or exists (select 1 from public.results r where r.id = result_id and r.school_id = result_amendments.school_id and public.sms_is_linked_parent(r.school_id, r.student_id))
   );
 create policy sms_fee_read_guard on public.fees as restrictive for select to authenticated
-  using (public.sms_has_school_role(school_id, array['school_admin', 'accountant']) or public.sms_is_linked_parent(school_id, student_id));
+  using (public.sms_has_school_role(school_id, array['school_admin', 'accountant']) or public.sms_is_linked_parent(school_id, student_id) or public.sms_is_self_student(school_id, student_id));
 create policy sms_payment_read_guard on public.payments as restrictive for select to authenticated
-  using (public.sms_has_school_role(school_id, array['school_admin', 'accountant']) or public.sms_is_linked_parent(school_id, student_id));
+  using (public.sms_has_school_role(school_id, array['school_admin', 'accountant']) or public.sms_is_linked_parent(school_id, student_id) or public.sms_is_self_student(school_id, student_id));
 create policy sms_teacher_read_guard on public.teachers as restrictive for select to authenticated
   using (public.sms_has_school_role(school_id, array['school_admin', 'teacher']));
 create policy sms_parent_link_read_guard on public.student_parents as restrictive for select to authenticated
@@ -106,7 +109,7 @@ do $$
 declare target_table text;
 begin
   foreach target_table in array array['classes', 'subjects'] loop
-    execute format('create policy sms_catalog_read_guard on public.%I as restrictive for select to authenticated using (public.sms_has_school_role(school_id, array[''school_admin'', ''teacher'', ''accountant'', ''parent'']))', target_table);
+    execute format('create policy sms_catalog_read_guard on public.%I as restrictive for select to authenticated using (public.sms_has_school_role(school_id, array[''school_admin'', ''teacher'', ''accountant'', ''parent'', ''student'']))', target_table);
   end loop;
   foreach target_table in array array['classes', 'subjects', 'students', 'teachers'] loop
     execute format('create policy sms_admin_insert_guard on public.%I as restrictive for insert to authenticated with check (public.sms_has_school_role(school_id, array[''school_admin'']))', target_table);
@@ -267,6 +270,7 @@ create policy assessments_read on public.assessments for select to authenticated
   using (
     public.sms_assessment_scope(school_id, class_id, subject_id)
     or public.sms_has_school_role(school_id, array['accountant'])
+    or public.sms_self_in_class(school_id, class_id)
     or exists (
       select 1 from public.students s
       join public.student_parents sp on sp.student_id = s.id and sp.parent_id = auth.uid()
@@ -277,6 +281,7 @@ create policy assessments_read_guard on public.assessments as restrictive for se
   using (
     public.sms_assessment_scope(school_id, class_id, subject_id)
     or public.sms_has_school_role(school_id, array['accountant'])
+    or public.sms_self_in_class(school_id, class_id)
     or exists (
       select 1 from public.students s
       join public.student_parents sp on sp.student_id = s.id and sp.parent_id = auth.uid()
@@ -293,11 +298,13 @@ create policy assessments_write_guard on public.assessments as restrictive for a
 create policy assessment_scores_read on public.assessment_scores for select to authenticated
   using (
     exists (select 1 from public.assessments a where a.id = assessment_id and public.sms_assessment_scope(a.school_id, a.class_id, a.subject_id))
+    or public.sms_is_self_student(school_id, student_id)
     or exists (select 1 from public.student_parents sp where sp.student_id = assessment_scores.student_id and sp.parent_id = auth.uid())
   );
 create policy assessment_scores_read_guard on public.assessment_scores as restrictive for select to authenticated
   using (
     exists (select 1 from public.assessments a where a.id = assessment_id and public.sms_assessment_scope(a.school_id, a.class_id, a.subject_id))
+    or public.sms_is_self_student(school_id, student_id)
     or exists (select 1 from public.student_parents sp where sp.student_id = assessment_scores.student_id and sp.parent_id = auth.uid())
   );
 create policy assessment_scores_write on public.assessment_scores for all to authenticated
@@ -370,6 +377,7 @@ create policy timetable_read on public.timetable_entries for select to authentic
   using (
     public.sms_has_school_role(school_id, array['school_admin', 'accountant'])
     or (public.sms_has_school_role(school_id, array['teacher']) and public.sms_teacher_assigned(school_id, class_id))
+    or public.sms_self_in_class(school_id, class_id)
     or exists (
       select 1 from public.students s
       join public.student_parents sp on sp.student_id = s.id and sp.parent_id = auth.uid()
@@ -380,6 +388,7 @@ create policy timetable_read_guard on public.timetable_entries as restrictive fo
   using (
     public.sms_has_school_role(school_id, array['school_admin', 'accountant'])
     or (public.sms_has_school_role(school_id, array['teacher']) and public.sms_teacher_assigned(school_id, class_id))
+    or public.sms_self_in_class(school_id, class_id)
     or exists (
       select 1 from public.students s
       join public.student_parents sp on sp.student_id = s.id and sp.parent_id = auth.uid()
@@ -392,6 +401,82 @@ create policy timetable_write on public.timetable_entries for all to authenticat
 create policy timetable_write_guard on public.timetable_entries as restrictive for all to authenticated
   using (public.sms_has_school_role(school_id, array['school_admin']))
   with check (public.sms_has_school_role(school_id, array['school_admin']));
+
+-- Assessment questions and submissions ----------------------------------------
+
+create policy questions_read on public.assessment_questions for select to authenticated
+  using (public.sms_has_school_role(school_id, array['school_admin', 'teacher', 'accountant']));
+create policy questions_read_guard on public.assessment_questions as restrictive for select to authenticated
+  using (public.sms_has_school_role(school_id, array['school_admin', 'teacher', 'accountant']));
+create policy questions_write on public.assessment_questions for all to authenticated
+  using (public.sms_has_school_role(school_id, array['school_admin', 'teacher']))
+  with check (
+    public.sms_has_school_role(school_id, array['school_admin', 'teacher'])
+    and exists (
+      select 1 from public.assessments a
+      where a.id = assessment_id and a.school_id = assessment_questions.school_id
+        and public.sms_assessment_scope(a.school_id, a.class_id, a.subject_id)
+    )
+  );
+create policy questions_write_guard on public.assessment_questions as restrictive for all to authenticated
+  using (public.sms_has_school_role(school_id, array['school_admin', 'teacher']))
+  with check (public.sms_has_school_role(school_id, array['school_admin', 'teacher']));
+
+create policy submissions_read on public.assessment_submissions for select to authenticated
+  using (
+    public.sms_is_self_student(school_id, student_id)
+    or public.sms_has_school_role(school_id, array['school_admin', 'accountant'])
+    or exists (
+      select 1 from public.assessments a
+      where a.id = assessment_id and public.sms_assessment_scope(a.school_id, a.class_id, a.subject_id)
+    )
+    or exists (
+      select 1 from public.student_parents sp
+      where sp.student_id = assessment_submissions.student_id and sp.parent_id = auth.uid()
+    )
+  );
+create policy submissions_read_guard on public.assessment_submissions as restrictive for select to authenticated
+  using (
+    public.sms_is_self_student(school_id, student_id)
+    or public.sms_has_school_role(school_id, array['school_admin', 'accountant'])
+    or exists (
+      select 1 from public.assessments a
+      where a.id = assessment_id and public.sms_assessment_scope(a.school_id, a.class_id, a.subject_id)
+    )
+    or exists (
+      select 1 from public.student_parents sp
+      where sp.student_id = assessment_submissions.student_id and sp.parent_id = auth.uid()
+    )
+  );
+create policy submissions_insert on public.assessment_submissions for insert to authenticated
+  with check (
+    submitted_by = auth.uid()
+    and status = 'submitted'
+    and public.sms_is_self_student(school_id, student_id)
+    and exists (
+      select 1 from public.assessments a
+      join public.students st on st.id = assessment_submissions.student_id and st.class_id = a.class_id
+      where a.id = assessment_id and a.school_id = assessment_submissions.school_id
+        and (a.due_at is null or a.due_at >= now())
+    )
+  );
+create policy submissions_insert_guard on public.assessment_submissions as restrictive for insert to authenticated
+  with check (
+    submitted_by = auth.uid()
+    and public.sms_is_self_student(school_id, student_id)
+  );
+create policy submissions_grade on public.assessment_submissions for update to authenticated
+  using (exists (select 1 from public.assessments a where a.id = assessment_id and public.sms_assessment_scope(a.school_id, a.class_id, a.subject_id)))
+  with check (
+    status = 'graded'
+    and graded_by = auth.uid()
+    and exists (select 1 from public.assessments a where a.id = assessment_id and public.sms_assessment_scope(a.school_id, a.class_id, a.subject_id))
+  );
+create policy submissions_grade_guard on public.assessment_submissions as restrictive for update to authenticated
+  using (exists (select 1 from public.assessments a where a.id = assessment_id and public.sms_assessment_scope(a.school_id, a.class_id, a.subject_id)))
+  with check (exists (select 1 from public.assessments a where a.id = assessment_id and public.sms_assessment_scope(a.school_id, a.class_id, a.subject_id)));
+create policy submissions_no_delete on public.assessment_submissions as restrictive for delete to authenticated
+  using (public.sms_has_school_role(school_id, array['school_admin']));
 
 commit;
 

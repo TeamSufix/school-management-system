@@ -4,7 +4,7 @@ import { createAnnouncement, deleteAnnouncement } from "@/actions/communication"
 import ConfigurationForm from "@/components/school/ConfigurationForm";
 
 const input = "block w-full rounded-lg border border-slate-300 p-2";
-const audienceLabel: Record<string, string> = { all: "Everyone", staff: "Staff", teachers: "Teachers", parents: "Parents" };
+const audienceLabel: Record<string, string> = { all: "Everyone", staff: "Staff", teachers: "Teachers", parents: "Parents", students: "Students" };
 
 export default async function AnnouncementsManager({ schoolId }: { schoolId?: string }) {
   const context = await getManagementContext(schoolId);
@@ -28,7 +28,7 @@ export default async function AnnouncementsManager({ schoolId }: { schoolId?: st
           <label className="block">Title<input className={input} name="title" maxLength={200} required /></label>
           <label className="block">Message<textarea className={input} name="body" rows={4} maxLength={5000} required /></label>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label>Audience<select className={input} name="audience" defaultValue="all"><option value="all">Everyone</option><option value="staff">Staff</option><option value="teachers">Teachers</option><option value="parents">Parents</option></select></label>
+            <label>Audience<select className={input} name="audience" defaultValue="all"><option value="all">Everyone</option><option value="staff">Staff</option><option value="teachers">Teachers</option><option value="parents">Parents</option><option value="students">Students</option></select></label>
             <label>Publish date<input className={input} name="publish_on" type="date" defaultValue={new Date().toISOString().slice(0, 10)} /></label>
           </div>
         </ConfigurationForm>

@@ -45,7 +45,8 @@ export async function getCurrentRole(): Promise<UserRole | null> {
     role === "school_admin" ||
     role === "teacher" ||
     role === "accountant" ||
-    role === "parent"
+    role === "parent" ||
+    role === "student"
   ) {
     return role;
   }

@@ -17,6 +17,9 @@ export function getDashboardForRole(role: UserRole): string {
     case "parent":
       return "/parent/dashboard";
 
+    case "student":
+      return "/student/dashboard";
+
     default:
       return "/login";
   }

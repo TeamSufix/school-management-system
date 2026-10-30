@@ -85,6 +85,72 @@ test("assessment score trigger rejects out-of-range scores and wrong-class stude
   );
 });
 
+test("student portal migration auto-grades quizzes and syncs scores", async () => {
+  const db = new PGlite();
+  await fixture(db);
+  await db.exec(`
+    create table results (id uuid primary key, school_id uuid, student_id uuid, class_id uuid, subject_id uuid, score numeric);
+    create policy sms_school_read_guard on schools as restrictive for select using (true);
+    create policy sms_catalog_read_guard on classes as restrictive for select using (true);
+    create policy sms_catalog_read_guard on subjects as restrictive for select using (true);
+    create policy sms_student_read_guard on students as restrictive for select using (true);
+    create policy sms_attendance_read_guard on attendance as restrictive for select using (true);
+    create policy sms_result_read_guard on results as restrictive for select using (true);
+    create policy sms_fee_read_guard on fees as restrictive for select using (true);
+    create policy sms_payment_read_guard on payments as restrictive for select using (true);
+    alter table schools enable row level security;
+    alter table classes enable row level security;
+    alter table subjects enable row level security;
+    alter table students enable row level security;
+    alter table attendance enable row level security;
+    alter table results enable row level security;
+    alter table fees enable row level security;
+    alter table payments enable row level security;
+    create function public.sms_is_linked_parent(uuid, uuid) returns boolean language sql stable security definer set search_path = '' as $$ select false $$;
+    create policy memberships_guard on school_memberships for all using (true) with check (true);
+    alter table school_memberships enable row level security;
+  `);
+  await db.exec(migration("202610290005_academic_structure.sql"));
+  await db.exec(migration("202610290006_assessments.sql"));
+  await db.exec(migration("202610290008_communication.sql"));
+  await db.exec(migration("202610290009_student_portal.sql"));
+
+  // Student role is now allowed on memberships.
+  await db.query("insert into school_memberships values ($1, $2, 'student')", [id(51), id(1)]);
+  await assert.rejects(
+    db.query("insert into school_memberships values ($1, $2, 'bogus')", [id(52), id(1)]),
+    /school_memberships_role_check/,
+  );
+
+  // Link the student record to the account and create a quiz.
+  await db.query("insert into profiles values ($1), ($2)", [id(51), id(53)]);
+  await db.query("update students set user_id = $1 where id = $2", [id(51), id(41)]);
+  const assessment = await db.query("insert into assessments (school_id, class_id, subject_id, academic_year, term, name, assessment_type, weight, max_score) values ($1, $2, $3, '2026/2027', 'term_1', 'Quiz 1', 'class_test', 10, 100) returning id", [id(1), id(21), id(31)]);
+  const assessmentId = assessment.rows[0].id;
+  const q1 = await db.query("insert into assessment_questions (school_id, assessment_id, sort_order, prompt, question_type, options, correct_option, points) values ($1, $2, 1, 'Q1', 'multiple_choice', '[\"a\",\"b\"]', 1, 30) returning id", [id(1), assessmentId]);
+  const q2 = await db.query("insert into assessment_questions (school_id, assessment_id, sort_order, prompt, question_type, options, correct_option, points) values ($1, $2, 2, 'Q2', 'multiple_choice', '[\"a\",\"b\"]', 0, 40) returning id", [id(1), assessmentId]);
+
+  await db.query("select set_config('request.jwt.claim.sub', $1, false)", [id(51)]);
+  const answers = JSON.stringify({ [q1.rows[0].id]: "1", [q2.rows[0].id]: "1" });
+  await db.query("insert into assessment_submissions (school_id, assessment_id, student_id, submitted_by, answers) values ($1, $2, $3, $4, $5::jsonb)", [id(1), assessmentId, id(41), id(51), answers]);
+
+  const submission = await db.query("select status, score from assessment_submissions where assessment_id = $1", [assessmentId]);
+  assert.equal(submission.rows[0].status, "graded");
+  assert.equal(Number(submission.rows[0].score), 30); // only Q1 correct
+
+  const synced = await db.query("select score, recorded_by from assessment_scores where assessment_id = $1 and student_id = $2", [assessmentId, id(41)]);
+  assert.equal(Number(synced.rows[0].score), 30);
+  assert.equal(synced.rows[0].recorded_by, id(51));
+
+  // A different student cannot submit to this assessment.
+  await db.query("insert into school_memberships values ($1, $2, 'student')", [id(53), id(1)]);
+  await db.query("select set_config('request.jwt.claim.sub', $1, false)", [id(53)]);
+  await assert.rejects(
+    db.query("insert into assessment_submissions (school_id, assessment_id, student_id, submitted_by, answers) values ($1, $2, $3, $4, '{}')", [id(1), assessmentId, id(41), id(53)]),
+    /Only the student enrolled in this class can submit/,
+  );
+});
+
 test("finance detail migration adds fee items and payment actor tracking", async () => {
   const db = new PGlite();
   await fixture(db);

@@ -7,10 +7,11 @@ import { createClient } from "@/lib/supabase/server";
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
 const AUDIENCES = {
-  all: ["school_admin", "teacher", "accountant", "parent"],
+  all: ["school_admin", "teacher", "accountant", "parent", "student"],
   staff: ["school_admin", "teacher", "accountant"],
   teachers: ["school_admin", "teacher"],
   parents: ["school_admin", "parent"],
+  students: ["school_admin", "student"],
 } as const;
 
 async function adminContext(form: FormData) {

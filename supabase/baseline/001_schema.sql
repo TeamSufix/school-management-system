@@ -44,7 +44,7 @@ create table public.school_memberships (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
   school_id uuid not null references public.schools(id) on delete cascade,
-  role text not null check (role in ('school_admin', 'teacher', 'accountant', 'parent')),
+  role text not null check (role in ('school_admin', 'teacher', 'accountant', 'parent', 'student')),
   created_at timestamptz not null default now(),
   unique (user_id, school_id)
 );
@@ -163,6 +163,7 @@ create table public.students (
   guardian_phone text check (guardian_phone is null or length(guardian_phone) <= 40),
   guardian_email text check (guardian_email is null or (length(guardian_email) <= 254 and guardian_email ~* '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$')),
   photo_path text check (photo_path is null or (split_part(photo_path, '/', 1) = school_id::text and split_part(photo_path, '/', 2) = 'students')),
+  user_id uuid references public.profiles(id) on delete set null,
   status text not null default 'active' check (status in ('active', 'inactive')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -258,6 +259,8 @@ create table public.assessments (
   assessment_type text not null check (assessment_type in ('class_test', 'assignment', 'mid_term', 'end_of_term', 'exam')),
   weight numeric(5,2) not null check (weight > 0 and weight <= 100),
   max_score numeric(6,2) not null default 100 check (max_score > 0 and max_score <= 1000),
+  due_at timestamptz,
+  instructions text check (instructions is null or length(instructions) <= 5000),
   created_by uuid references public.profiles(id),
   created_at timestamptz not null default now(),
   unique (class_id, subject_id, academic_year, term, name)
@@ -272,6 +275,37 @@ create table public.assessment_scores (
   recorded_by uuid references public.profiles(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  unique (assessment_id, student_id)
+);
+
+create table public.assessment_questions (
+  id uuid primary key default gen_random_uuid(),
+  school_id uuid not null references public.schools(id) on delete cascade,
+  assessment_id uuid not null references public.assessments(id) on delete cascade,
+  sort_order integer not null check (sort_order > 0),
+  prompt text not null check (length(btrim(prompt)) between 1 and 2000),
+  question_type text not null check (question_type in ('multiple_choice', 'short_answer')),
+  options jsonb not null default '[]'::jsonb
+    check (jsonb_typeof(options) = 'array' and jsonb_array_length(options) <= 10),
+  correct_option smallint check (correct_option is null or correct_option between 0 and 9),
+  points numeric(6,2) not null default 1 check (points > 0 and points <= 1000),
+  unique (assessment_id, sort_order),
+  check (question_type = 'short_answer' or (correct_option is not null and jsonb_array_length(options) >= 2))
+);
+
+create table public.assessment_submissions (
+  id uuid primary key default gen_random_uuid(),
+  school_id uuid not null references public.schools(id) on delete cascade,
+  assessment_id uuid not null references public.assessments(id) on delete cascade,
+  student_id uuid not null references public.students(id) on delete cascade,
+  submitted_by uuid not null references public.profiles(id),
+  answers jsonb not null default '{}'::jsonb check (jsonb_typeof(answers) = 'object'),
+  score numeric(6,2) check (score is null or score >= 0),
+  status text not null default 'submitted' check (status in ('submitted', 'graded')),
+  submitted_at timestamptz not null default now(),
+  graded_by uuid references public.profiles(id),
+  graded_at timestamptz,
+  feedback text check (feedback is null or length(feedback) <= 2000),
   unique (assessment_id, student_id)
 );
 
@@ -317,7 +351,7 @@ create table public.announcements (
   school_id uuid not null references public.schools(id) on delete cascade,
   title text not null check (length(btrim(title)) between 1 and 200),
   body text not null check (length(btrim(body)) between 1 and 5000),
-  audience text not null default 'all' check (audience in ('all', 'staff', 'teachers', 'parents')),
+  audience text not null default 'all' check (audience in ('all', 'staff', 'teachers', 'parents', 'students')),
   publish_on date not null default current_date,
   created_by uuid references public.profiles(id),
   created_at timestamptz not null default now()
@@ -353,6 +387,10 @@ create index idx_platform_memberships_user_id on public.platform_memberships(use
 create index idx_school_memberships_user_id on public.school_memberships(user_id);
 create index idx_school_memberships_school_id on public.school_memberships(school_id);
 create index idx_students_school_id on public.students(school_id);
+create unique index idx_students_user_id on public.students(user_id) where user_id is not null;
+create index idx_assessment_questions_assessment on public.assessment_questions(assessment_id);
+create index idx_assessment_submissions_assessment on public.assessment_submissions(assessment_id);
+create index idx_assessment_submissions_student on public.assessment_submissions(student_id);
 create index idx_student_parents_parent on public.student_parents(parent_id);
 create index idx_student_documents_student on public.student_documents(student_id);
 create index idx_attendance_school_date on public.attendance(school_id, date);
