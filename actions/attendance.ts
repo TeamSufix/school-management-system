@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { getManagementContext } from "@/lib/auth/get-management-context";
+import { canAccessTeachingScope } from "@/lib/auth/teacher-scope";
 
 export type AttendanceStatus = "present" | "absent" | "late";
 
@@ -102,7 +103,7 @@ export async function getAttendanceHistory(schoolId?: string) {
       };
     }
 
-    const records = attendance ?? [];
+    const records = (attendance ?? []).filter((record) => canAccessTeachingScope(context, record.class_id));
 
     if (!records.length) {
       return {
@@ -218,6 +219,10 @@ export async function getAttendance(
       };
     }
 
+    if (!canAccessTeachingScope(context, classId)) {
+      return { success: false, error: "This class is not assigned to you." };
+    }
+
     const { data: schoolClass, error: classError } = await context.client
       .from("classes")
       .select("id")
@@ -312,6 +317,10 @@ export async function getAttendanceStudents(
         success: false,
         error: "You are not authorized to access attendance.",
       };
+    }
+
+    if (!canAccessTeachingScope(context, classId)) {
+      return { success: false, error: "This class is not assigned to you." };
     }
 
     const { data: schoolClass, error: classError } = await context.client
@@ -447,6 +456,10 @@ export async function saveAttendance(
     }
 
     const classId = classIds[0];
+
+    if (!canAccessTeachingScope(context, classId)) {
+      return { success: false, error: "This class is not assigned to you." };
+    }
 
     const { data: schoolClass, error: classError } = await context.client
       .from("classes")

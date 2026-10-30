@@ -74,7 +74,7 @@ export default async function EditStudentPage({ params }: Props) {
               <span className="font-semibold text-slate-700">
                 {student.first_name} {student.last_name}
               </span>
-              's information.
+              &apos;s information.
             </p>
           </div>
         </div>

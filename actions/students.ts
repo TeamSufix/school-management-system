@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { getManagementContext } from "@/lib/auth/get-management-context";
+import { canAccessTeachingScope } from "@/lib/auth/teacher-scope";
 
 export type StudentFormData = {
   first_name: string;
@@ -103,7 +104,7 @@ export async function getStudents(schoolId?: string | null) {
 
     return {
       success: true,
-      students: data ?? [],
+      students: (data ?? []).filter((student) => context.role !== "teacher" || (!!student.class_id && canAccessTeachingScope(context, student.class_id))),
     };
   } catch (error) {
     console.error("Get students exception:", error);

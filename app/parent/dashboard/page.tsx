@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth/get-user";
@@ -113,7 +114,7 @@ export default async function ParentDashboard() {
                 </h1>
 
                 <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400 sm:text-base">
-                  Stay connected with your children's school information from
+                  Stay connected with your children&apos;s school information from
                   one simple place.
                 </p>
 
@@ -161,7 +162,7 @@ export default async function ParentDashboard() {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                View your children's school information.
+                View your children&apos;s school information.
               </p>
             </div>
 
@@ -197,7 +198,7 @@ export default async function ParentDashboard() {
                 </h3>
 
                 <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
-                  Your children's records have not been connected to this parent
+                  Your children&apos;s records have not been connected to this parent
                   account yet.
                 </p>
 
@@ -277,6 +278,8 @@ function ChildCard({
         </div>
       </div>
 
+
+      <Link href={`/parent/records#${student.id}`} className="block px-6 py-4 font-semibold text-green-700">View attendance, results and fees</Link>
 
       <div className="grid grid-cols-2 gap-px bg-slate-100">
         <InfoItem label="Gender" value={student.gender || "Not provided"} />

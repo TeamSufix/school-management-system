@@ -214,6 +214,12 @@ export default async function SchoolDashboard() {
 
   const managementLinks = [
     {
+      title: "Academic Settings",
+      description: "Set the current year and term, and assign teachers.",
+      href: "/school/settings",
+      icon: "class",
+    },
+    {
       title: "Students",
       description: "Add and manage student records.",
       href: "/school/students",

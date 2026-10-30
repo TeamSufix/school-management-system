@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import AmendResultForm from "@/components/school/AmendResultForm";
 
 import {
   getResultStudents,
@@ -11,6 +13,7 @@ import {
 } from "@/actions/results";
 
 import { calculateGrade } from "@/lib/academics/grades";
+import { defaultAcademicPeriod, type AcademicPeriod } from "@/lib/academics/period";
 
 type SchoolClass = {
   id: string;
@@ -50,6 +53,8 @@ type Props = {
   classes: SchoolClass[];
   subjects: Subject[];
   schoolId: string;
+  initialPeriod?: AcademicPeriod;
+  canManage?: boolean;
 };
 
 type Scores = Record<string, string>;
@@ -86,18 +91,17 @@ function gradeClass(grade: string) {
   return "bg-red-50 text-red-700 ring-red-200";
 }
 
-export default function ResultsForm({ classes, subjects, schoolId }: Props) {
+export default function ResultsForm({ classes, subjects, schoolId, initialPeriod = defaultAcademicPeriod(), canManage = false }: Props) {
   const [classId, setClassId] = useState("");
   const [subjectId, setSubjectId] = useState("");
 
-  const [academicYear, setAcademicYear] = useState(
-    `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
-  );
+  const [academicYear, setAcademicYear] = useState(initialPeriod.academic_year);
 
-  const [term, setTerm] = useState<"term_1" | "term_2" | "term_3">("term_1");
+  const [term, setTerm] = useState<"term_1" | "term_2" | "term_3">(initialPeriod.term);
 
   const [students, setStudents] = useState<Student[]>([]);
   const [scores, setScores] = useState<Scores>({});
+  const [recordedStudents, setRecordedStudents] = useState<string[]>([]);
   const [history, setHistory] = useState<HistoryRecord[]>([]);
 
   const [loadingHistory, setLoadingHistory] = useState(true);
@@ -125,77 +129,52 @@ export default function ResultsForm({ classes, subjects, schoolId }: Props) {
   }
 
   useEffect(() => {
-    loadHistory();
+    let active = true;
+    getResultsHistory(schoolId).then((result) => {
+      if (!active) return;
+      setHistory((result.results ?? []) as HistoryRecord[]);
+      if (!result.success) setError(result.error ?? "Failed to load results.");
+      setLoadingHistory(false);
+    }).catch(() => { if (active) { setError("Failed to load results."); setLoadingHistory(false); } });
+    return () => { active = false; };
   }, [schoolId]);
 
   useEffect(() => {
+    if (!classId) return;
+    let active = true;
+    async function load() {
+      try {
+        const studentResult = await getResultStudents(classId, schoolId);
+        const result = subjectId && academicYear ? await getResults(classId, subjectId, academicYear, term, schoolId) : null;
+        if (!active) return;
+        if (!studentResult.success || (result && !result.success)) {
+          setError(studentResult.error ?? result?.error ?? "Unable to load academic records.");
+          setStudents([]);
+          setScores({});
+        } else {
+          setStudents(studentResult.students ?? []);
+          const values: Scores = {};
+          for (const record of result?.results ?? []) values[record.student_id] = String(record.current_score ?? record.score);
+          setScores(values);
+          setRecordedStudents(Object.keys(values));
+        }
+      } catch {
+        if (active) { setError("Unable to load academic records."); setStudents([]); setScores({}); }
+      } finally {
+        if (active) { setLoadingStudents(false); setLoadingResults(false); }
+      }
+    }
+    void load();
+    return () => { active = false; };
+  }, [classId, subjectId, academicYear, term, schoolId]);
+
+  function resetSelection() {
     setScores({});
+    setRecordedStudents([]);
     setSuccess("");
     setError("");
-
-    if (!classId) {
-      setStudents([]);
-      return;
-    }
-
-    async function loadStudents() {
-      setLoadingStudents(true);
-
-      const result = await getResultStudents(classId, schoolId);
-
-      if (!result.success) {
-        setError(result.error ?? "Failed to load students.");
-        setStudents([]);
-        setLoadingStudents(false);
-        return;
-      }
-
-      setStudents(result.students ?? []);
-      setLoadingStudents(false);
-    }
-
-    loadStudents();
-  }, [classId, schoolId]);
-
-  useEffect(() => {
-    if (!classId || !subjectId || !academicYear || !term || !students.length) {
-      return;
-    }
-
-    async function loadExistingResults() {
-      setLoadingResults(true);
-
-      const result = await getResults(
-        classId,
-        subjectId,
-        academicYear,
-        term,
-        schoolId,
-      );
-
-      if (!result.success) {
-        setLoadingResults(false);
-        return;
-      }
-
-      const existingScores: Scores = {};
-
-      for (const record of result.results ?? []) {
-        existingScores[record.student_id] = String(
-          record.current_score ?? record.score,
-        );
-      }
-
-      setScores((current) => ({
-        ...current,
-        ...existingScores,
-      }));
-
-      setLoadingResults(false);
-    }
-
-    loadExistingResults();
-  }, [classId, subjectId, academicYear, term, students.length, schoolId]);
+    setLoadingResults(!!classId);
+  }
 
   function updateScore(studentId: string, value: string) {
     if (value === "") {
@@ -255,7 +234,7 @@ export default function ResultsForm({ classes, subjects, schoolId }: Props) {
     const records: ResultRecord[] = students
       .filter(
         (student) =>
-          scores[student.id] !== undefined && scores[student.id] !== "",
+          !recordedStudents.includes(student.id) && scores[student.id] !== undefined && scores[student.id] !== "",
       )
       .map((student) => ({
         student_id: student.id,
@@ -281,7 +260,8 @@ export default function ResultsForm({ classes, subjects, schoolId }: Props) {
       return;
     }
 
-    setSuccess("Results saved successfully.");
+    setSuccess("Results saved successfully. Use Amend result in the history to correct recorded scores.");
+    setRecordedStudents((current) => [...new Set([...current, ...records.map((record) => record.student_id)])]);
 
     await loadHistory();
 
@@ -407,6 +387,7 @@ export default function ResultsForm({ classes, subjects, schoolId }: Props) {
                       >
                         {record.grade}
                       </span>
+                      {canManage && <><Link className="mt-2 block text-sm font-semibold text-green-700" href={`/reports/students/${record.student_id}?year=${encodeURIComponent(record.academic_year)}&term=${record.term}${schoolId ? `&school=${encodeURIComponent(schoolId)}` : ""}`}>Report card</Link><AmendResultForm resultId={record.id} schoolId={schoolId} score={record.score} onSaved={loadHistory} /></>}
                     </td>
                   </tr>
                 ))}
@@ -451,7 +432,7 @@ export default function ResultsForm({ classes, subjects, schoolId }: Props) {
 
               <select
                 value={classId}
-                onChange={(event) => setClassId(event.target.value)}
+                onChange={(event) => { resetSelection(); setClassId(event.target.value); setStudents([]); setLoadingStudents(!!event.target.value); setLoadingResults(!!event.target.value); }}
                 className={inputClass}
               >
                 <option value="">Select class</option>
@@ -471,7 +452,7 @@ export default function ResultsForm({ classes, subjects, schoolId }: Props) {
 
               <select
                 value={subjectId}
-                onChange={(event) => setSubjectId(event.target.value)}
+                onChange={(event) => { resetSelection(); setSubjectId(event.target.value); }}
                 className={inputClass}
               >
                 <option value="">Select subject</option>
@@ -491,7 +472,7 @@ export default function ResultsForm({ classes, subjects, schoolId }: Props) {
 
               <input
                 value={academicYear}
-                onChange={(event) => setAcademicYear(event.target.value)}
+                onChange={(event) => { resetSelection(); setAcademicYear(event.target.value); }}
                 placeholder="2026/2027"
                 className={inputClass}
               />
@@ -504,9 +485,7 @@ export default function ResultsForm({ classes, subjects, schoolId }: Props) {
 
               <select
                 value={term}
-                onChange={(event) =>
-                  setTerm(event.target.value as "term_1" | "term_2" | "term_3")
-                }
+                onChange={(event) => { resetSelection(); setTerm(event.target.value as "term_1" | "term_2" | "term_3"); }}
                 className={inputClass}
               >
                 <option value="term_1">Term 1</option>
@@ -611,6 +590,8 @@ export default function ResultsForm({ classes, subjects, schoolId }: Props) {
                                 max="100"
                                 step="0.01"
                                 value={score}
+                                disabled={recordedStudents.includes(student.id)}
+                                aria-label={`Score for ${student.first_name} ${student.last_name}`}
                                 onChange={(event) =>
                                   updateScore(student.id, event.target.value)
                                 }

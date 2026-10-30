@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -11,7 +11,9 @@ export type ManagementRole = Extract<
 
 export type ManagementContext = {
   role: ManagementRole;
+  userId: string;
   schoolId: string;
+  teacherAssignments?: { class_id: string; subject_id: string }[];
   client:
     | Awaited<ReturnType<typeof createClient>>
     | ReturnType<typeof createAdminClient>;
@@ -89,6 +91,7 @@ export async function getManagementContext(
 
     return {
       role: "super_admin",
+      userId: user.id,
       schoolId: school.id,
       client: admin,
     };
@@ -132,9 +135,33 @@ export async function getManagementContext(
     return null;
   }
 
+  const { data: school, error: schoolError } = await supabase
+    .from("schools")
+    .select("id, status")
+    .eq("id", membership.school_id)
+    .maybeSingle();
+
+  if (schoolError || !school || school.status !== "active") {
+    return null;
+  }
+
+  let teacherAssignments: { class_id: string; subject_id: string }[] = [];
+  if (role === "teacher") {
+    const { data, error } = await supabase
+      .from("teacher_assignments")
+      .select("class_id, subject_id, teachers!inner(user_id, status)")
+      .eq("school_id", membership.school_id)
+      .eq("teachers.user_id", user.id)
+      .eq("teachers.status", "active");
+    if (error) return null;
+    teacherAssignments = data ?? [];
+  }
+
   return {
     role,
+    userId: user.id,
     schoolId: membership.school_id,
+    teacherAssignments,
     client: supabase,
   };
 }

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentSchool } from "@/lib/auth/get-user";
 
-import ResultsForm from "@/components/school/ResultsForm";
+import ResultsForm from "@/components/school/AcademicResultsForm";
 
 export default async function ResultsPage() {
   const currentSchool = await getCurrentSchool();

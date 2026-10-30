@@ -109,6 +109,8 @@ export default async function StudentProfilePage({ params }: Props) {
         </div>
       </section>
 
+      {current.role === "school_admin" && <Link href={`/reports/students/${student.id}`} className="mt-6 inline-block rounded-xl bg-green-700 px-5 py-3 font-semibold text-white">View report card</Link>}
+
       {/* Information */}
       <section className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_15px_50px_-30px_rgba(15,23,42,0.25)]">
         <div className="border-b border-slate-100 px-6 py-5 sm:px-8">

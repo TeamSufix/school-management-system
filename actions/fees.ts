@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import { getManagementContext } from "@/lib/auth/get-management-context";
+import { validateAcademicPeriod } from "@/lib/academics/period";
+import { isValidMoney, moneyToCents } from "@/lib/academics/money";
 
 export type FeeTerm = "term_1" | "term_2" | "term_3";
 
@@ -193,7 +195,7 @@ export async function getFees(
       });
 
     if (academicYear) {
-      query = query.eq("academic_year", academicYear);
+      query = query.in("academic_year", [...new Set([academicYear, academicYear.replace("-", "/"), academicYear.replace("/", "-")])]);
     }
 
     if (term) {
@@ -262,12 +264,12 @@ export async function getFees(
 
       const amountDue = Number(fee.amount_due);
 
-      const totalPaid = feePayments.reduce(
-        (total, payment) => total + Number(payment.amount),
+      const paidCents = feePayments.reduce(
+        (total, payment) => total + moneyToCents(Number(payment.amount)),
         0,
       );
-
-      const balance = Math.max(amountDue - totalPaid, 0);
+      const totalPaid = paidCents / 100;
+      const balance = (moneyToCents(amountDue) - paidCents) / 100;
 
       const student = Array.isArray(fee.students)
         ? (fee.students[0] ?? null)
@@ -466,7 +468,10 @@ export async function createFee(
 
     const amountDue = Number(record.amount_due);
 
-    if (!Number.isFinite(amountDue) || amountDue < 0) {
+    const periodError = validateAcademicPeriod(record.academic_year.trim(), record.term);
+    if (periodError) return { success: false, error: periodError };
+
+    if (!isValidMoney(amountDue)) {
       return {
         success: false,
         error: "Amount due must be a valid amount.",
@@ -584,7 +589,7 @@ export async function createPayment(
 
     const amount = Number(record.amount);
 
-    if (!Number.isFinite(amount) || amount <= 0) {
+    if (!isValidMoney(amount) || amount <= 0) {
       return {
         success: false,
         error: "Payment amount must be greater than zero.",
@@ -642,12 +647,13 @@ export async function createPayment(
       };
     }
 
-    const totalPaid = (existingPayments ?? []).reduce(
-      (total, payment) => total + Number(payment.amount),
+    const paidCents = (existingPayments ?? []).reduce(
+      (total, payment) => total + moneyToCents(Number(payment.amount)),
       0,
     );
 
-    const balance = Number(fee.amount_due) - totalPaid;
+    const balanceCents = moneyToCents(Number(fee.amount_due)) - paidCents;
+    const balance = balanceCents / 100;
 
     if (balance <= 0) {
       return {
@@ -656,7 +662,7 @@ export async function createPayment(
       };
     }
 
-    if (amount > balance) {
+    if (moneyToCents(amount) > balanceCents) {
       return {
         success: false,
         error: `Payment cannot exceed the remaining balance of GH₵ ${balance.toFixed(

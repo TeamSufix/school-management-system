@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/get-user";
 import { getManagementContext } from "@/lib/auth/get-management-context";
 
-import FeesPageClient from "@/components/school/FeesPageClient";
+import FeesPageClient from "@/components/school/AcademicFeesForm";
 
 type Props = {
   params: Promise<{
@@ -201,7 +201,7 @@ export default async function PlatformFeesPage({ params }: Props) {
                   </h3>
 
                   <p className="mt-1 text-sm leading-6 text-red-700">
-                    We couldn't load the active students for this school. Please
+                    We could not load the active students for this school. Please
                     refresh the page and try again.
                   </p>
                 </div>

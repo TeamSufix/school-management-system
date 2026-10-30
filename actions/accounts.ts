@@ -38,6 +38,14 @@ export async function createSchoolAccount(input: CreateAccountInput) {
     };
   }
 
+  if (!input || !["teacher", "accountant", "parent"].includes(input.role)) {
+    return { success: false, error: "Invalid account role." };
+  }
+
+  if ([input.schoolId, input.firstName, input.lastName, input.email, input.password].some((value) => typeof value !== "string") || (input.phone !== undefined && typeof input.phone !== "string")) {
+    return { success: false, error: "Account fields must be valid text values." };
+  }
+
   if (!input.schoolId) {
     return {
       success: false,

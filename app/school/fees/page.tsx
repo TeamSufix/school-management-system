@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentSchool } from "@/lib/auth/get-user";
 
-import FeesPageClient from "@/components/school/FeesPageClient";
+import FeesPageClient from "@/components/school/AcademicFeesForm";
 
 export default async function FeesPage() {
   const currentSchool = await getCurrentSchool();

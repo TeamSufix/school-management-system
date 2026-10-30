@@ -1,3 +1,5 @@
+import "server-only";
+
 import { createClient } from "@/lib/supabase/server";
 
 export type UserRole =
@@ -133,6 +135,10 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     console.error("getCurrentUser school error:", schoolError);
   }
 
+  if (schoolError || !school || school.status !== "active") {
+    return null;
+  }
+
   return {
     id: user.id,
     email: user.email ?? null,
@@ -141,7 +147,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     phone: profile?.phone ?? null,
     role,
     schoolId: membership.school_id,
-    school: school ?? null,
+    school,
   };
 }
 

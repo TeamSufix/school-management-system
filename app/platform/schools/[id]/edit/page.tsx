@@ -85,7 +85,7 @@ export default async function EditSchoolPage({ params }: EditSchoolPageProps) {
             <h2 className="font-bold text-slate-900">School information</h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Keep the school's information accurate and up to date.
+              Keep the school information accurate and up to date.
             </p>
           </div>
 

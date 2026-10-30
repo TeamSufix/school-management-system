@@ -224,6 +224,7 @@ export default async function PlatformSchoolPage({ params }: Props) {
 
   return (
     <main className="min-h-screen bg-slate-50">
+      <Link href={`/platform/schools/${id}/settings`} className="mx-auto block max-w-7xl px-6 pt-6 font-semibold text-green-700">Academic settings and teacher assignments</Link>
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm">
@@ -465,7 +466,7 @@ export default async function PlatformSchoolPage({ params }: Props) {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Monitor the school's financial records.
+                Monitor school financial records.
               </p>
             </div>
 

@@ -105,7 +105,7 @@ export async function createTeacher(formData: FormData) {
 
     const phone = getString(formData, "phone");
 
-    const password = getString(formData, "password");
+    const password = String(formData.get("password") ?? "");
 
     if (!firstName || !lastName) {
       return {
@@ -208,6 +208,7 @@ export async function createTeacher(formData: FormData) {
     // CREATE TEACHER RECORD
     const { error: teacherError } = await admin.from("teachers").insert({
       school_id: context.schoolId,
+      user_id: userId,
       first_name: firstName,
       last_name: lastName,
       email,

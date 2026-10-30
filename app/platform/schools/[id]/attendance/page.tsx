@@ -188,7 +188,7 @@ export default async function PlatformAttendancePage({ params }: Props) {
                     </h3>
 
                     <p className="mt-1 text-sm leading-6 text-red-700">
-                      We couldn't load the classes for this school. Please
+                      We could not load the classes for this school. Please
                       refresh the page and try again.
                     </p>
                   </div>

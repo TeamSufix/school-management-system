@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { defaultAcademicPeriod, type AcademicPeriod } from "@/lib/academics/period";
 
 import {
   createFee,
@@ -21,6 +23,7 @@ type Student = {
 type Props = {
   students: Student[];
   schoolId: string;
+  initialPeriod?: AcademicPeriod;
 };
 
 type Fee = {
@@ -170,16 +173,14 @@ function getPaymentStatus(fee: Fee) {
   };
 }
 
-export default function FeesPageClient({ students, schoolId }: Props) {
-  const currentYear = `${new Date().getFullYear()}-${
-    new Date().getFullYear() + 1
-  }`;
+export default function FeesPageClient({ students, schoolId, initialPeriod = defaultAcademicPeriod() }: Props) {
+  const currentYear = initialPeriod.academic_year;
 
   const [fees, setFees] = useState<Fee[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
 
   const [academicYear, setAcademicYear] = useState(currentYear);
-  const [term, setTerm] = useState<FeeTerm>("term_1");
+  const [term, setTerm] = useState<FeeTerm>(initialPeriod.term);
 
   const [loading, setLoading] = useState(true);
   const [loadingPayments, setLoadingPayments] = useState(true);
@@ -235,11 +236,25 @@ export default function FeesPageClient({ students, schoolId }: Props) {
   }
 
   useEffect(() => {
-    loadFees();
+    let active = true;
+    getFees(academicYear, term, schoolId).then((result) => {
+      if (!active) return;
+      setFees((result.fees ?? []) as Fee[]);
+      if (!result.success) setError(result.error ?? "Unable to load fees.");
+      setLoading(false);
+    }).catch(() => { if (active) { setError("Unable to load fees."); setLoading(false); } });
+    return () => { active = false; };
   }, [academicYear, term, schoolId]);
 
   useEffect(() => {
-    loadPayments();
+    let active = true;
+    getPayments(schoolId).then((result) => {
+      if (!active) return;
+      setPayments((result.payments ?? []) as Payment[]);
+      if (!result.success) setError(result.error ?? "Unable to load payments.");
+      setLoadingPayments(false);
+    }).catch(() => { if (active) { setError("Unable to load payments."); setLoadingPayments(false); } });
+    return () => { active = false; };
   }, [schoolId]);
 
   const totals = useMemo(
@@ -640,15 +655,15 @@ export default function FeesPageClient({ students, schoolId }: Props) {
             <div className="flex flex-col gap-2 sm:flex-row">
               <input
                 value={academicYear}
-                onChange={(event) => setAcademicYear(event.target.value)}
-                placeholder="2026-2027"
+                onChange={(event) => { setAcademicYear(event.target.value); setLoading(true); setError(""); setSelectedFee(null); }}
+                placeholder="2026/2027"
                 aria-label="Academic year"
                 className={`${inputClass} sm:w-36`}
               />
 
               <select
                 value={term}
-                onChange={(event) => setTerm(event.target.value as FeeTerm)}
+                onChange={(event) => { setTerm(event.target.value as FeeTerm); setLoading(true); setError(""); setSelectedFee(null); }}
                 aria-label="Term"
                 className={`${selectClass} sm:w-32`}
               >
@@ -1075,6 +1090,7 @@ export default function FeesPageClient({ students, schoolId }: Props) {
                       <span className="text-slate-500">
                         {payment.reference || "—"}
                       </span>
+                      <Link href={`/receipts/${payment.id}${schoolId ? `?school=${encodeURIComponent(schoolId)}` : ""}`} className="mt-1 block font-semibold text-green-700">View receipt</Link>
                     </td>
                   </tr>
                 ))}

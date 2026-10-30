@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { getManagementContext } from "@/lib/auth/get-management-context";
+import { canAccessTeachingScope } from "@/lib/auth/teacher-scope";
 
 /* GET SUBJECTS */
 
@@ -38,7 +39,7 @@ export async function getSubjects(requestedSchoolId?: string | null) {
 
     return {
       success: true,
-      subjects: data ?? [],
+      subjects: (data ?? []).filter((subject) => canAccessTeachingScope(context, null, subject.id)),
       error: null,
     };
   } catch (error) {

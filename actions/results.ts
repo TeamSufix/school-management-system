@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 
 import { getManagementContext } from "@/lib/auth/get-management-context";
+import { canAccessTeachingScope } from "@/lib/auth/teacher-scope";
 import { calculateGrade } from "@/lib/academics/grades";
+import { validateAcademicPeriod } from "@/lib/academics/period";
 
 export type ResultRecord = {
   student_id: string;
@@ -69,6 +71,10 @@ export async function getResults(
       };
     }
 
+    if (!canAccessTeachingScope(context, classId)) {
+      return { success: false, error: "This class is not assigned to you." };
+    }
+
     const { data: schoolClass, error: classError } = await context.client
       .from("classes")
       .select("id")
@@ -81,6 +87,10 @@ export async function getResults(
         success: false,
         error: "The selected class does not belong to this school.",
       };
+    }
+
+    if (!canAccessTeachingScope(context, classId, subjectId)) {
+      return { success: false, error: "This class and subject are not assigned to you." };
     }
 
     const { data: subject, error: subjectError } = await context.client
@@ -115,7 +125,7 @@ export async function getResults(
       .eq("school_id", context.schoolId)
       .eq("class_id", classId)
       .eq("subject_id", subjectId)
-      .eq("academic_year", academicYear)
+      .in("academic_year", [...new Set([academicYear, academicYear.replace("-", "/"), academicYear.replace("/", "-")])])
       .eq("term", term)
       .order("created_at", {
         ascending: true,
@@ -165,7 +175,8 @@ export async function getResults(
           .in("result_id", resultIds)
           .order("created_at", {
             ascending: true,
-          });
+          })
+          .order("id", { ascending: true });
 
       if (amendmentError) {
         console.error("Get result amendments error:", amendmentError);
@@ -241,6 +252,10 @@ export async function getResultStudents(classId: string, schoolId?: string) {
         success: false,
         error: "You are not authorized to access results.",
       };
+    }
+
+    if (!canAccessTeachingScope(context, classId)) {
+      return { success: false, error: "This class is not assigned to you." };
     }
 
     const { data: schoolClass, error: classError } = await context.client
@@ -351,12 +366,8 @@ export async function saveResults(records: ResultRecord[], schoolId?: string) {
         };
       }
 
-      if (!record.academic_year) {
-        return {
-          success: false,
-          error: "Academic year is required.",
-        };
-      }
+      const periodError = validateAcademicPeriod(record.academic_year?.trim() ?? "", record.term);
+      if (periodError) return { success: false, error: periodError };
 
       if (!["term_1", "term_2", "term_3"].includes(record.term)) {
         return {
@@ -398,6 +409,10 @@ export async function saveResults(records: ResultRecord[], schoolId?: string) {
     const classId = classIds[0];
     const subjectId = subjectIds[0];
 
+    if (!canAccessTeachingScope(context, classId)) {
+      return { success: false, error: "This class is not assigned to you." };
+    }
+
     const { data: schoolClass, error: classError } = await context.client
       .from("classes")
       .select("id")
@@ -410,6 +425,10 @@ export async function saveResults(records: ResultRecord[], schoolId?: string) {
         success: false,
         error: "The selected class does not belong to this school.",
       };
+    }
+
+    if (!canAccessTeachingScope(context, classId, subjectId)) {
+      return { success: false, error: "This class and subject are not assigned to you." };
     }
 
     const { data: subject, error: subjectError } = await context.client
@@ -456,7 +475,7 @@ export async function saveResults(records: ResultRecord[], schoolId?: string) {
       student_id: record.student_id,
       class_id: record.class_id,
       subject_id: record.subject_id,
-      academic_year: record.academic_year,
+      academic_year: record.academic_year.trim(),
       term: record.term,
       score: record.score,
       grade: calculateGrade(record.score),
@@ -564,15 +583,6 @@ export async function amendResult(
       };
     }
 
-    const { data: userData } = await context.client.auth.getUser();
-
-    if (!userData.user) {
-      return {
-        success: false,
-        error: "You must be logged in.",
-      };
-    }
-
     const { data: result, error: resultError } = await context.client
       .from("results")
       .select(
@@ -618,6 +628,7 @@ export async function amendResult(
         .order("created_at", {
           ascending: false,
         })
+        .order("id", { ascending: false })
         .limit(1);
 
     if (amendmentsError) {
@@ -654,7 +665,7 @@ export async function amendResult(
         old_grade: oldGrade,
         new_grade: newGrade,
         reason,
-        amended_by: userData.user.id,
+        amended_by: context.userId,
       })
       .select()
       .single();
@@ -746,7 +757,7 @@ export async function getResultsHistory(schoolId?: string) {
       };
     }
 
-    const records = results ?? [];
+    const records = (results ?? []).filter((record) => canAccessTeachingScope(context, record.class_id, record.subject_id));
 
     if (!records.length) {
       return {
@@ -754,6 +765,22 @@ export async function getResultsHistory(schoolId?: string) {
         results: [],
       };
     }
+
+    const { data: amendments, error: amendmentError } = await context.client
+      .from("result_amendments")
+      .select("id, result_id, new_score, new_grade, created_at")
+      .eq("school_id", context.schoolId)
+      .in("result_id", records.map((record) => record.id))
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true });
+
+    if (amendmentError) {
+      return { success: false, error: "Unable to load amended results." };
+    }
+
+    const latestAmendments = new Map(
+      (amendments ?? []).map((amendment) => [amendment.result_id, amendment]),
+    );
 
     const studentIds = [...new Set(records.map((record) => record.student_id))];
 
@@ -815,7 +842,10 @@ export async function getResultsHistory(schoolId?: string) {
       success: true,
       results: records.map((record) => ({
         ...record,
-        score: Number(record.score),
+        original_score: Number(record.score),
+        original_grade: record.grade,
+        score: Number(latestAmendments.get(record.id)?.new_score ?? record.score),
+        grade: latestAmendments.get(record.id)?.new_grade ?? record.grade,
         student: studentMap.get(record.student_id) ?? null,
         class: classMap.get(record.class_id) ?? null,
         subject: subjectMap.get(record.subject_id) ?? null,

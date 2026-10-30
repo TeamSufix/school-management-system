@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { getManagementContext } from "@/lib/auth/get-management-context";
+import { canAccessTeachingScope } from "@/lib/auth/teacher-scope";
 
 export type ClassFormData = {
   id?: string;
@@ -49,7 +50,7 @@ export async function getClasses(requestedSchoolId?: string | null) {
 
     return {
       success: true,
-      data: data ?? [],
+      data: (data ?? []).filter((schoolClass) => canAccessTeachingScope(context, schoolClass.id)),
       error: null,
     };
   } catch (error) {

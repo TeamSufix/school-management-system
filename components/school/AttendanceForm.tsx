@@ -114,78 +114,38 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
   }
 
   useEffect(() => {
-    loadHistory();
+    let active = true;
+    getAttendanceHistory(schoolId).then((result) => {
+      if (!active) return;
+      setHistory((result.attendance ?? []) as AttendanceHistory[]);
+      if (!result.success) setError(result.error ?? "Failed to load attendance history.");
+      setLoadingHistory(false);
+    }).catch(() => { if (active) { setError("Failed to load attendance history."); setLoadingHistory(false); } });
+    return () => { active = false; };
   }, [schoolId]);
 
   useEffect(() => {
-    if (!classId) {
-      setStudents([]);
-      setAttendance({});
-      return;
-    }
-
-    async function loadStudents() {
-      setLoadingStudents(true);
-      setError("");
-
-      const result = await getAttendanceStudents(classId, schoolId);
-
-      if (!result.success) {
-        setError(result.error ?? "Failed to load students.");
+    if (!classId) return;
+    let active = true;
+    Promise.all([getAttendanceStudents(classId, schoolId), getAttendance(classId, date, schoolId)]).then(([result, existing]) => {
+      if (!active) return;
+      if (!result.success || !existing.success) {
+        setError(result.error ?? existing.error ?? "Unable to load attendance.");
         setStudents([]);
         setAttendance({});
-        setLoadingStudents(false);
-        return;
+      } else {
+        const loaded = result.students ?? [];
+        const values: Record<string, AttendanceStatus> = {};
+        loaded.forEach((student) => { values[student.id] = "present"; });
+        (existing.attendance ?? []).forEach((record) => { values[record.student_id] = record.status as AttendanceStatus; });
+        setStudents(loaded);
+        setAttendance(values);
       }
-
-      const loadedStudents = result.students ?? [];
-
-      setStudents(loadedStudents);
-
-      const initial: Record<string, AttendanceStatus> = {};
-
-      loadedStudents.forEach((student) => {
-        initial[student.id] = "present";
-      });
-
-      setAttendance(initial);
       setLoadingStudents(false);
-    }
-
-    loadStudents();
-  }, [classId, schoolId]);
-
-  useEffect(() => {
-    if (!classId || !students.length) {
-      return;
-    }
-
-    async function loadExisting() {
-      setLoadingAttendance(true);
-
-      const result = await getAttendance(classId, date, schoolId);
-
-      if (result.success) {
-        const existing = result.attendance ?? [];
-
-        if (existing.length) {
-          setAttendance((current) => {
-            const next = { ...current };
-
-            existing.forEach((record) => {
-              next[record.student_id] = record.status as AttendanceStatus;
-            });
-
-            return next;
-          });
-        }
-      }
-
       setLoadingAttendance(false);
-    }
-
-    loadExisting();
-  }, [classId, schoolId, students.length]);
+    }).catch(() => { if (active) { setError("Unable to load attendance."); setLoadingStudents(false); setLoadingAttendance(false); } });
+    return () => { active = false; };
+  }, [classId, schoolId, date]);
 
   const todayHistory = useMemo(
     () => history.filter((record) => record.date === date),
@@ -263,7 +223,7 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
             </p>
 
             <p className="mt-1 text-sm text-slate-500">
-              Use the form below to record today's attendance.
+              Use the form below to record attendance for today.
             </p>
           </div>
         ) : (
@@ -335,7 +295,7 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-6 py-5">
           <h2 className="text-lg font-semibold text-slate-900">
-            Record Today's Attendance
+            Record Attendance for Today
           </h2>
 
           <p className="mt-1 text-sm text-slate-500">
@@ -364,7 +324,7 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
 
               <select
                 value={classId}
-                onChange={(event) => setClassId(event.target.value)}
+                onChange={(event) => { setClassId(event.target.value); setStudents([]); setAttendance({}); setError(""); setSuccess(""); setLoadingStudents(!!event.target.value); setLoadingAttendance(!!event.target.value); }}
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
               >
                 <option value="">Select class</option>
@@ -471,7 +431,7 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
                   <p className="text-xs text-slate-500">
                     {todayHistory.length > 0
                       ? "Attendance has already been recorded for some students today."
-                      : "Ready to record today's attendance."}
+                      : "Ready to record attendance for today."}
                   </p>
                 </div>
 

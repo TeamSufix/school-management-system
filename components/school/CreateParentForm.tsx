@@ -76,7 +76,7 @@ export default function CreateParentForm({ schoolId }: Props) {
             <h2 className="font-bold text-slate-950">Add parent</h2>
 
             <p className="mt-1 text-sm leading-5 text-slate-500">
-              Create the parent's account and login credentials.
+              Create the parent account and login credentials.
             </p>
           </div>
         </div>

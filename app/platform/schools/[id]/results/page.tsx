@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/get-user";
 import { getManagementContext } from "@/lib/auth/get-management-context";
 
-import ResultsForm from "@/components/school/ResultsForm";
+import ResultsForm from "@/components/school/AcademicResultsForm";
 
 type Props = {
   params: Promise<{
