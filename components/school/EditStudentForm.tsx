@@ -10,6 +10,12 @@ type SchoolClass = {
   name: string;
 };
 
+type Stream = {
+  id: string;
+  name: string;
+  class_id: string;
+};
+
 type Student = {
   id: string;
   first_name: string;
@@ -18,23 +24,31 @@ type Student = {
   gender: string | null;
   date_of_birth: string | null;
   class_id: string;
+  stream_id?: string | null;
   phone: string | null;
   address: string | null;
+  admission_date?: string | null;
+  guardian_name?: string | null;
+  guardian_relationship?: string | null;
+  guardian_phone?: string | null;
+  guardian_email?: string | null;
 };
 
 type Props = {
   student: Student;
   classes: SchoolClass[];
+  streams?: Stream[];
 };
 
 const inputClass =
   "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-green-500 focus:ring-4 focus:ring-green-500/10";
 
-export default function EditStudentForm({ student, classes }: Props) {
+export default function EditStudentForm({ student, classes, streams = [] }: Props) {
   const router = useRouter();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [classId, setClassId] = useState(student.class_id);
 
   async function handleSubmit(formData: FormData) {
     setLoading(true);
@@ -174,6 +188,96 @@ export default function EditStudentForm({ student, classes }: Props) {
               className={inputClass}
             />
           </div>
+
+          <div>
+            <label
+              htmlFor="admission_date"
+              className="mb-2 block text-sm font-semibold text-slate-700"
+            >
+              Admission Date
+            </label>
+            <input
+              id="admission_date"
+              name="admission_date"
+              type="date"
+              defaultValue={student.admission_date ?? ""}
+              className={inputClass}
+            />
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-4 text-sm font-bold text-slate-900">
+            Guardian details
+          </p>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label
+                htmlFor="guardian_name"
+                className="mb-2 block text-sm font-semibold text-slate-700"
+              >
+                Guardian Name
+              </label>
+              <input
+                id="guardian_name"
+                name="guardian_name"
+                maxLength={200}
+                defaultValue={student.guardian_name ?? ""}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="guardian_relationship"
+                className="mb-2 block text-sm font-semibold text-slate-700"
+              >
+                Relationship
+              </label>
+              <input
+                id="guardian_relationship"
+                name="guardian_relationship"
+                maxLength={100}
+                defaultValue={student.guardian_relationship ?? ""}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="guardian_phone"
+                className="mb-2 block text-sm font-semibold text-slate-700"
+              >
+                Guardian Phone
+              </label>
+              <input
+                id="guardian_phone"
+                name="guardian_phone"
+                type="tel"
+                maxLength={40}
+                defaultValue={student.guardian_phone ?? ""}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="guardian_email"
+                className="mb-2 block text-sm font-semibold text-slate-700"
+              >
+                Guardian Email
+              </label>
+              <input
+                id="guardian_email"
+                name="guardian_email"
+                type="email"
+                maxLength={254}
+                defaultValue={student.guardian_email ?? ""}
+                className={inputClass}
+              />
+            </div>
+          </div>
         </div>
 
         <div>
@@ -188,8 +292,9 @@ export default function EditStudentForm({ student, classes }: Props) {
             id="class_id"
             name="class_id"
             required
-            defaultValue={student.class_id}
             className={inputClass}
+            value={classId}
+            onChange={(event) => setClassId(event.target.value)}
           >
             <option value="">Select class</option>
 
@@ -200,6 +305,34 @@ export default function EditStudentForm({ student, classes }: Props) {
             ))}
           </select>
         </div>
+
+        {streams.some((stream) => stream.class_id === classId) && (
+          <div>
+            <label
+              htmlFor="stream_id"
+              className="mb-2 block text-sm font-semibold text-slate-700"
+            >
+              Stream
+            </label>
+
+            <select
+              id="stream_id"
+              name="stream_id"
+              defaultValue={student.stream_id ?? ""}
+              className={inputClass}
+            >
+              <option value="">No stream</option>
+
+              {streams
+                .filter((stream) => stream.class_id === classId)
+                .map((stream) => (
+                  <option key={stream.id} value={stream.id}>
+                    {stream.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
 
         <div className="grid gap-5 sm:grid-cols-2">
           <div>

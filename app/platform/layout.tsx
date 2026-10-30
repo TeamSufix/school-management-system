@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { requireRole } from "@/lib/auth/require-role";
 import LogoutButton from "@/components/auth/LogoutButton";
+import { getPublicPlatformSettings } from "@/lib/platform/data";
 
 export default async function PlatformLayout({
   children,
@@ -9,6 +10,7 @@ export default async function PlatformLayout({
   children: React.ReactNode;
 }) {
   await requireRole(["super_admin"]);
+  const platform = await getPublicPlatformSettings();
 
   return (
     <div className="min-h-screen bg-[#f6f8f7] text-slate-900">
@@ -67,15 +69,15 @@ export default async function PlatformLayout({
 
           <nav className="space-y-1">
             <SidebarLink
-              href="/platform/schools"
+              href="/platform/users"
               icon="users"
-              label="School Records"
+              label="Users"
             />
 
             <SidebarLink
-              href="/platform/schools"
+              href="/platform/settings"
               icon="shield"
-              label="Administration"
+              label="Settings"
             />
           </nav>
         </div>
@@ -134,7 +136,7 @@ export default async function PlatformLayout({
                 <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
 
                 <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                  School Management Platform
+                  {platform.platform_name}
                 </p>
               </div>
 
@@ -162,6 +164,12 @@ export default async function PlatformLayout({
               </div>
             </div>
           </div>
+          <nav className="flex flex-wrap gap-5 border-t px-5 py-3 text-sm font-semibold text-green-700 lg:hidden" aria-label="Platform navigation">
+            <Link href="/platform/dashboard">Overview</Link>
+            <Link href="/platform/schools">Schools</Link>
+            <Link href="/platform/users">Users</Link>
+            <Link href="/platform/settings">Settings</Link>
+          </nav>
         </header>
 
         {/* PAGE */}

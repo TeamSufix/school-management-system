@@ -42,6 +42,11 @@ export default async function EditStudentPage({ params }: Props) {
       .order("name"),
   ]);
 
+  const { data: streams } = await supabase
+    .from("streams")
+    .select("id, name, class_id")
+    .eq("school_id", current.schoolId);
+
   if (!student) {
     notFound();
   }
@@ -80,7 +85,7 @@ export default async function EditStudentPage({ params }: Props) {
         </div>
 
         <div className="p-6 sm:p-8">
-          <EditStudentForm student={student} classes={classes ?? []} />
+          <EditStudentForm student={student} classes={classes ?? []} streams={streams ?? []} />
         </div>
       </section>
     </main>

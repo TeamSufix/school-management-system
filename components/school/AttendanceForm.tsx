@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { isCalendarDate, todayDate } from "@/lib/academics/attendance";
 
 import {
   getAttendance,
@@ -49,15 +50,6 @@ type Props = {
   schoolId: string;
 };
 
-function getTodayDate() {
-  const today = new Date();
-
-  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(
-    2,
-    "0",
-  )}-${String(today.getDate()).padStart(2, "0")}`;
-}
-
 function formatDate(date: string) {
   return new Date(`${date}T00:00:00`).toLocaleDateString("en-GH", {
     day: "numeric",
@@ -69,6 +61,7 @@ function formatDate(date: string) {
 function statusLabel(status: AttendanceStatus) {
   if (status === "present") return "Present";
   if (status === "absent") return "Absent";
+  if (status === "excused") return "Excused";
   return "Late";
 }
 
@@ -94,7 +87,8 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const date = getTodayDate();
+  const [date, setDate] = useState(todayDate);
+  const [recordedStudents, setRecordedStudents] = useState<string[]>([]);
 
   async function loadHistory() {
     setLoadingHistory(true);
@@ -125,7 +119,7 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
   }, [schoolId]);
 
   useEffect(() => {
-    if (!classId) return;
+    if (!classId || !isCalendarDate(date) || date > todayDate()) return;
     let active = true;
     Promise.all([getAttendanceStudents(classId, schoolId), getAttendance(classId, date, schoolId)]).then(([result, existing]) => {
       if (!active) return;
@@ -140,6 +134,7 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
         (existing.attendance ?? []).forEach((record) => { values[record.student_id] = record.status as AttendanceStatus; });
         setStudents(loaded);
         setAttendance(values);
+        setRecordedStudents((existing.attendance ?? []).map((record) => record.student_id));
       }
       setLoadingStudents(false);
       setLoadingAttendance(false);
@@ -147,10 +142,21 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
     return () => { active = false; };
   }, [classId, schoolId, date]);
 
-  const todayHistory = useMemo(
-    () => history.filter((record) => record.date === date),
-    [history, date],
+  const selectedHistory = useMemo(
+    () => history.filter((record) => record.date === date && record.class_id === classId),
+    [history, date, classId],
   );
+  const allRecorded = students.length > 0 && students.every((student) => recordedStudents.includes(student.id));
+
+  function resetSelection() {
+    setStudents([]);
+    setAttendance({});
+    setRecordedStudents([]);
+    setError("");
+    setSuccess("");
+    setLoadingStudents(false);
+    setLoadingAttendance(false);
+  }
 
   async function handleSave() {
     setError("");
@@ -166,28 +172,35 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
       return;
     }
 
-    const records = students.map((student) => ({
+    if (!isCalendarDate(date) || date > todayDate()) {
+      setError("Select a valid date that is not in the future.");
+      return;
+    }
+
+    const records = students.filter((student) => !recordedStudents.includes(student.id)).map((student) => ({
       student_id: student.id,
       class_id: classId,
       date,
       status: attendance[student.id] ?? "present",
     }));
 
+    if (!records.length) { setError("Attendance is already recorded for all students in this class on the selected date."); return; }
     setSaving(true);
 
-    const result = await saveAttendance(records, schoolId);
-
-    if (!result.success) {
-      setError(result.error ?? "Failed to save attendance.");
+    try {
+      const result = await saveAttendance(records, schoolId);
+      if (!result.success) {
+        setError(result.error ?? "Failed to save attendance.");
+        return;
+      }
+      setSuccess("Attendance recorded successfully.");
+      setRecordedStudents((current) => [...new Set([...current, ...records.map((record) => record.student_id)])]);
+      await loadHistory();
+    } catch {
+      setError("Unable to save attendance. Please try again.");
+    } finally {
       setSaving(false);
-      return;
     }
-
-    setSuccess("Attendance recorded successfully.");
-
-    await loadHistory();
-
-    setSaving(false);
   }
 
   return (
@@ -223,7 +236,7 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
             </p>
 
             <p className="mt-1 text-sm text-slate-500">
-              Use the form below to record attendance for today.
+              Select a class and date below to record attendance.
             </p>
           </div>
         ) : (
@@ -273,7 +286,7 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
                             ? "bg-green-100 text-green-700"
                             : record.status === "late"
                               ? "bg-amber-100 text-amber-700"
-                              : "bg-red-100 text-red-700"
+                              : record.status === "excused" ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700"
                         }`}
                       >
                         {statusLabel(record.status)}
@@ -295,11 +308,11 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-6 py-5">
           <h2 className="text-lg font-semibold text-slate-900">
-            Record Attendance for Today
+            Record Attendance
           </h2>
 
           <p className="mt-1 text-sm text-slate-500">
-            Attendance can only be recorded for today.
+            Record attendance for today or a previous date. Existing records are not overwritten.
           </p>
         </div>
 
@@ -324,7 +337,8 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
 
               <select
                 value={classId}
-                onChange={(event) => { setClassId(event.target.value); setStudents([]); setAttendance({}); setError(""); setSuccess(""); setLoadingStudents(!!event.target.value); setLoadingAttendance(!!event.target.value); }}
+                disabled={saving}
+                onChange={(event) => { resetSelection(); setClassId(event.target.value); setLoadingStudents(!!event.target.value && isCalendarDate(date) && date <= todayDate()); setLoadingAttendance(!!event.target.value && isCalendarDate(date) && date <= todayDate()); }}
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
               >
                 <option value="">Select class</option>
@@ -345,7 +359,9 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
               <input
                 type="date"
                 value={date}
-                readOnly
+                max={todayDate()}
+                disabled={saving}
+                onChange={(event) => { resetSelection(); setDate(event.target.value); const valid = !!classId && isCalendarDate(event.target.value) && event.target.value <= todayDate(); setLoadingStudents(valid); setLoadingAttendance(valid); }}
                 className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-600"
               />
             </div>
@@ -399,6 +415,8 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
                         <td className="px-5 py-4">
                           <select
                             value={attendance[student.id] ?? "present"}
+                            disabled={saving || recordedStudents.includes(student.id)}
+                            aria-label={`Attendance for ${student.first_name} ${student.last_name}`}
                             onChange={(event) =>
                               setAttendance((current) => ({
                                 ...current,
@@ -413,6 +431,7 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
                             <option value="absent">Absent</option>
 
                             <option value="late">Late</option>
+                            <option value="excused">Excused</option>
                           </select>
                         </td>
                       </tr>
@@ -429,21 +448,21 @@ export default function AttendanceForm({ classes, schoolId }: Props) {
                   </p>
 
                   <p className="text-xs text-slate-500">
-                    {todayHistory.length > 0
-                      ? "Attendance has already been recorded for some students today."
-                      : "Ready to record attendance for today."}
+                    {selectedHistory.length > 0
+                      ? `${selectedHistory.length} records already exist for this class and date. Only unrecorded students will be saved.`
+                      : "Ready to record attendance for the selected class and date."}
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={handleSave}
-                  disabled={saving || todayHistory.length > 0}
+                  disabled={saving || loadingStudents || loadingAttendance || allRecorded || !students.length || !isCalendarDate(date) || date > todayDate()}
                   className="rounded-lg bg-green-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving
                     ? "Saving..."
-                    : todayHistory.length > 0
+                    : allRecorded
                       ? "Attendance Already Recorded"
                       : "Save Attendance"}
                 </button>

@@ -24,6 +24,7 @@ export default async function PaymentReceiptPage({ params, searchParams }: {
         <div><dt className="text-sm text-slate-500">Academic period</dt><dd>{receipt.fee.academic_year} · {receipt.fee.term.replace("term_", "Term ")}</dd></div>
         <div><dt className="text-sm text-slate-500">Method</dt><dd className="capitalize">{receipt.payment.payment_method.replaceAll("_", " ")}</dd></div>
         <div><dt className="text-sm text-slate-500">Reference</dt><dd>{receipt.payment.reference || "Not provided"}</dd></div>
+        <div><dt className="text-sm text-slate-500">Recorded by</dt><dd>{receipt.recordedBy || "Not recorded"}</dd></div>
       </dl>
       <p className="rounded-xl bg-green-50 p-6 text-3xl font-bold text-green-800">Amount received: {amount}</p>
       <footer className="text-sm text-slate-500">This receipt acknowledges this recorded payment only. Contact the school with the receipt ID for verification.</footer>

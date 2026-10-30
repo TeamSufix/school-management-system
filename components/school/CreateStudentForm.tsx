@@ -10,8 +10,15 @@ type SchoolClass = {
   name: string;
 };
 
+type Stream = {
+  id: string;
+  name: string;
+  class_id: string;
+};
+
 type Props = {
   classes: SchoolClass[];
+  streams?: Stream[];
   schoolId?: string;
 };
 
@@ -33,11 +40,12 @@ function UserIcon() {
   );
 }
 
-export default function CreateStudentForm({ classes, schoolId }: Props) {
+export default function CreateStudentForm({ classes, streams = [], schoolId }: Props) {
   const router = useRouter();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [classId, setClassId] = useState("");
 
   async function handleSubmit(formData: FormData) {
     setLoading(true);
@@ -177,6 +185,80 @@ export default function CreateStudentForm({ classes, schoolId }: Props) {
                 className={inputClass}
               />
             </div>
+
+            <div>
+              <label htmlFor="admission_date" className={labelClass}>
+                Admission Date
+              </label>
+              <input
+                id="admission_date"
+                name="admission_date"
+                type="date"
+                className={inputClass}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-4">
+            <p className="text-sm font-bold text-slate-900">Guardian details</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Optional parent or guardian contact information.
+            </p>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label htmlFor="guardian_name" className={labelClass}>
+                Guardian Name
+              </label>
+              <input
+                id="guardian_name"
+                name="guardian_name"
+                maxLength={200}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="guardian_relationship" className={labelClass}>
+                Relationship
+              </label>
+              <input
+                id="guardian_relationship"
+                name="guardian_relationship"
+                maxLength={100}
+                placeholder="Mother, father, guardian…"
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="guardian_phone" className={labelClass}>
+                Guardian Phone
+              </label>
+              <input
+                id="guardian_phone"
+                name="guardian_phone"
+                type="tel"
+                maxLength={40}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="guardian_email" className={labelClass}>
+                Guardian Email
+              </label>
+              <input
+                id="guardian_email"
+                name="guardian_email"
+                type="email"
+                maxLength={254}
+                className={inputClass}
+              />
+            </div>
           </div>
         </div>
 
@@ -185,7 +267,14 @@ export default function CreateStudentForm({ classes, schoolId }: Props) {
             Class
           </label>
 
-          <select id="class_id" name="class_id" required className={inputClass}>
+          <select
+            id="class_id"
+            name="class_id"
+            required
+            className={inputClass}
+            value={classId}
+            onChange={(event) => setClassId(event.target.value)}
+          >
             <option value="">Select class</option>
 
             {classes.map((schoolClass) => (
@@ -195,6 +284,26 @@ export default function CreateStudentForm({ classes, schoolId }: Props) {
             ))}
           </select>
         </div>
+
+        {streams.some((stream) => stream.class_id === classId) && (
+          <div>
+            <label htmlFor="stream_id" className={labelClass}>
+              Stream
+            </label>
+
+            <select id="stream_id" name="stream_id" className={inputClass}>
+              <option value="">No stream</option>
+
+              {streams
+                .filter((stream) => stream.class_id === classId)
+                .map((stream) => (
+                  <option key={stream.id} value={stream.id}>
+                    {stream.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
 
         <div className="grid gap-5 sm:grid-cols-2">
           <div>

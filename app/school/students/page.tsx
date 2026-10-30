@@ -35,6 +35,11 @@ export default async function StudentsPage({ searchParams }: Props) {
     console.error("Classes fetch error:", classesError);
   }
 
+  const { data: streams } = await supabase
+    .from("streams")
+    .select("id, name, class_id")
+    .eq("school_id", current.schoolId);
+
   let studentsQuery = supabase
     .from("students")
     .select(
@@ -175,7 +180,7 @@ export default async function StudentsPage({ searchParams }: Props) {
             </div>
 
             <div className="p-6">
-              <CreateStudentForm classes={classes ?? []} />
+              <CreateStudentForm classes={classes ?? []} streams={streams ?? []} />
             </div>
           </aside>
         )}

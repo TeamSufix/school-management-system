@@ -40,6 +40,21 @@ export default async function ParentDashboard() {
     console.error("Parent children fetch error:", error);
   }
 
+  const { data: announcements } = user.schoolId
+    ? await supabase
+        .from("announcements")
+        .select("id, title, body, publish_on")
+        .eq("school_id", user.schoolId)
+        .order("publish_on", { ascending: false })
+        .limit(5)
+    : { data: [] };
+
+  const { count: unreadCount } = await supabase
+    .from("notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .is("read_at", null);
+
   const validChildren =
     children?.filter((item) => {
       const student = Array.isArray(item.students)
@@ -226,6 +241,34 @@ export default async function ParentDashboard() {
               })}
             </div>
           )}
+        </section>
+
+        <section className="mt-8 grid gap-5 md:grid-cols-2">
+          <Link
+            href="/school/notifications"
+            className="rounded-[24px] border border-slate-200/80 bg-white p-6 shadow-sm transition hover:border-green-200"
+          >
+            <h2 className="font-bold text-slate-900">Notifications</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              {unreadCount ?? 0} unread notification{(unreadCount ?? 0) === 1 ? "" : "s"}.
+            </p>
+          </Link>
+
+          <div className="rounded-[24px] border border-slate-200/80 bg-white p-6 shadow-sm">
+            <h2 className="font-bold text-slate-900">Announcements</h2>
+            {!announcements?.length ? (
+              <p className="mt-2 text-sm text-slate-500">No announcements yet.</p>
+            ) : (
+              <ul className="mt-3 space-y-3">
+                {announcements.map((announcement) => (
+                  <li key={announcement.id} className="text-sm">
+                    <p className="font-semibold text-slate-800">{announcement.title}</p>
+                    <p className="text-xs text-slate-400">{announcement.publish_on}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </section>
       </div>
     </main>

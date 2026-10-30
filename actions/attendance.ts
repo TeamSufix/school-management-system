@@ -5,7 +5,9 @@ import { revalidatePath } from "next/cache";
 import { getManagementContext } from "@/lib/auth/get-management-context";
 import { canAccessTeachingScope } from "@/lib/auth/teacher-scope";
 
-export type AttendanceStatus = "present" | "absent" | "late";
+import { isCalendarDate, validateAttendanceBatch, type AttendanceStatus } from "@/lib/academics/attendance";
+
+export type { AttendanceStatus } from "@/lib/academics/attendance";
 
 export type AttendanceRecord = {
   student_id: string;
@@ -34,16 +36,6 @@ export type AttendanceHistoryRecord = {
     name: string;
   } | null;
 };
-
-function getTodayDate() {
-  const today = new Date();
-
-  return [
-    today.getFullYear(),
-    String(today.getMonth() + 1).padStart(2, "0"),
-    String(today.getDate()).padStart(2, "0"),
-  ].join("-");
-}
 
 function canViewAttendance(role: string) {
   return (
@@ -196,10 +188,10 @@ export async function getAttendance(
       };
     }
 
-    if (!date) {
+    if (!isCalendarDate(date)) {
       return {
         success: false,
-        error: "Date is required.",
+        error: "A valid attendance date is required.",
       };
     }
 
@@ -389,12 +381,8 @@ export async function saveAttendance(
   schoolId?: string,
 ) {
   try {
-    if (!records.length) {
-      return {
-        success: false,
-        error: "No attendance records were provided.",
-      };
-    }
+    const batchError = validateAttendanceBatch(records);
+    if (batchError) return { success: false, error: batchError };
 
     const context = await getManagementContext(schoolId);
 
@@ -410,40 +398,6 @@ export async function saveAttendance(
         success: false,
         error: "You are not authorized to record attendance.",
       };
-    }
-
-    const validStatuses: AttendanceStatus[] = ["present", "absent", "late"];
-
-    const todayDate = getTodayDate();
-
-    for (const record of records) {
-      if (!record.student_id) {
-        return {
-          success: false,
-          error: "A student is missing from the attendance records.",
-        };
-      }
-
-      if (!record.class_id) {
-        return {
-          success: false,
-          error: "A class is missing from the attendance records.",
-        };
-      }
-
-      if (record.date !== todayDate) {
-        return {
-          success: false,
-          error: "Attendance can only be recorded for today.",
-        };
-      }
-
-      if (!validStatuses.includes(record.status)) {
-        return {
-          success: false,
-          error: "Invalid attendance status.",
-        };
-      }
     }
 
     const classIds = [...new Set(records.map((record) => record.class_id))];
@@ -521,7 +475,7 @@ export async function saveAttendance(
         return {
           success: false,
           error:
-            "Attendance has already been recorded for one or more students today.",
+            "Attendance has already been recorded for one or more students on the selected date.",
         };
       }
 

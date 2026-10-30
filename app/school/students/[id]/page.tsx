@@ -3,6 +3,10 @@ import { notFound, redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentSchool } from "@/lib/auth/get-user";
+import { createAdminClient } from "@/lib/supabase/admin";
+import StudentRecords from "@/components/school/StudentRecords";
+import StudentFileManager from "@/components/school/StudentFileManager";
+import EnrollmentHistory from "@/components/school/EnrollmentHistory";
 
 type Props = {
   params: Promise<{
@@ -44,6 +48,17 @@ export default async function StudentProfilePage({ params }: Props) {
     ? student.classes[0]
     : student.classes;
 
+  let photoUrl: string | null = null;
+  if (
+    typeof student.photo_path === "string" &&
+    student.photo_path.startsWith(`${current.schoolId}/students/${student.id}/photo/`)
+  ) {
+    const signed = await createAdminClient()
+      .storage.from("schoolms-records")
+      .createSignedUrl(student.photo_path, 600);
+    photoUrl = signed.data?.signedUrl ?? null;
+  }
+
   const initials =
     `${student.first_name?.charAt(0) ?? ""}${student.last_name?.charAt(0) ?? ""}`.toUpperCase();
 
@@ -63,8 +78,13 @@ export default async function StudentProfilePage({ params }: Props) {
 
         <div className="relative flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
           <div className="flex items-center gap-5">
-            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl bg-green-50 text-2xl font-bold text-green-700 ring-1 ring-green-100">
-              {initials || "ST"}
+            <div
+              role="img"
+              aria-label={`${student.first_name} ${student.last_name}`}
+              className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl bg-green-50 bg-cover bg-center text-2xl font-bold text-green-700 ring-1 ring-green-100"
+              style={photoUrl ? { backgroundImage: `url("${photoUrl}")` } : undefined}
+            >
+              {photoUrl ? null : initials || "ST"}
             </div>
 
             <div>
@@ -146,9 +166,35 @@ export default async function StudentProfilePage({ params }: Props) {
 
           <Info label="Address" value={student.address ?? "Not provided"} />
 
+          <Info
+            label="Admission Date"
+            value={student.admission_date ?? "Not provided"}
+          />
+
           <Info label="Status" value={student.status} />
         </div>
       </section>
+
+      {/* Guardian */}
+      <section className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_15px_50px_-30px_rgba(15,23,42,0.25)]">
+        <div className="border-b border-slate-100 px-6 py-5 sm:px-8">
+          <h2 className="font-bold text-slate-950">Guardian Information</h2>
+        </div>
+
+        <div className="grid gap-x-8 gap-y-7 p-6 sm:grid-cols-2 sm:p-8 lg:grid-cols-4">
+          <Info label="Name" value={student.guardian_name ?? "Not provided"} />
+          <Info
+            label="Relationship"
+            value={student.guardian_relationship ?? "Not provided"}
+          />
+          <Info label="Phone" value={student.guardian_phone ?? "Not provided"} />
+          <Info label="Email" value={student.guardian_email ?? "Not provided"} />
+        </div>
+      </section>
+
+      <StudentFileManager studentId={student.id} />
+
+      <EnrollmentHistory studentId={student.id} />
 
       {/* Records */}
       <section className="mt-6">
@@ -163,23 +209,23 @@ export default async function StudentProfilePage({ params }: Props) {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <RecordCard
+          {current.role !== "accountant" && <RecordCard
             title="Attendance"
             description="View attendance records."
-            href={`/school/attendance?student=${student.id}`}
-          />
+            href="#student-attendance"
+          />}
 
-          <RecordCard
+          {current.role !== "accountant" && <RecordCard
             title="Results"
             description="View academic results."
-            href={`/school/results?student=${student.id}`}
-          />
+            href="#student-results"
+          />}
 
-          <RecordCard
+          {current.role !== "teacher" && <RecordCard
             title="Fees"
             description="View fees and payments."
-            href={`/school/fees?student=${student.id}`}
-          />
+            href="#student-fees"
+          />}
 
           <RecordCard
             title="Class"
@@ -188,6 +234,7 @@ export default async function StudentProfilePage({ params }: Props) {
           />
         </div>
       </section>
+      <StudentRecords studentId={student.id} />
     </main>
   );
 }

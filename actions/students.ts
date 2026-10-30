@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { getManagementContext } from "@/lib/auth/get-management-context";
 import { canAccessTeachingScope } from "@/lib/auth/teacher-scope";
+import { recordEnrollment } from "@/lib/academics/enrollment";
 
 export type StudentFormData = {
   first_name: string;
@@ -12,9 +13,15 @@ export type StudentFormData = {
   gender?: string | null;
   date_of_birth?: string | null;
   class_id?: string | null;
+  stream_id?: string | null;
   phone?: string | null;
   address?: string | null;
   status?: string | null;
+  admission_date?: string | null;
+  guardian_name?: string | null;
+  guardian_relationship?: string | null;
+  guardian_phone?: string | null;
+  guardian_email?: string | null;
 };
 
 type ActionResult = {
@@ -31,9 +38,51 @@ function formDataToStudentData(formData: FormData): StudentFormData {
     gender: String(formData.get("gender") ?? "") || null,
     date_of_birth: String(formData.get("date_of_birth") ?? "") || null,
     class_id: String(formData.get("class_id") ?? "") || null,
+    stream_id: String(formData.get("stream_id") ?? "") || null,
     phone: String(formData.get("phone") ?? "") || null,
     address: String(formData.get("address") ?? "") || null,
     status: String(formData.get("status") ?? "") || "active",
+    admission_date: String(formData.get("admission_date") ?? "") || null,
+    guardian_name: String(formData.get("guardian_name") ?? "") || null,
+    guardian_relationship:
+      String(formData.get("guardian_relationship") ?? "") || null,
+    guardian_phone: String(formData.get("guardian_phone") ?? "") || null,
+    guardian_email: String(formData.get("guardian_email") ?? "") || null,
+  };
+}
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function studentFieldErrors(data: StudentFormData) {
+  if (data.date_of_birth && Number.isNaN(Date.parse(data.date_of_birth))) {
+    return "Enter a valid date of birth.";
+  }
+  if (data.admission_date && Number.isNaN(Date.parse(data.admission_date))) {
+    return "Enter a valid admission date.";
+  }
+  if (
+    data.guardian_email &&
+    (data.guardian_email.length > 254 || !EMAIL_PATTERN.test(data.guardian_email))
+  ) {
+    return "Enter a valid guardian email address.";
+  }
+  if (data.guardian_name && data.guardian_name.trim().length > 200) {
+    return "Guardian name is too long.";
+  }
+  if (data.guardian_phone && data.guardian_phone.length > 40) {
+    return "Guardian phone is too long.";
+  }
+  return null;
+}
+
+function studentRecordFields(data: StudentFormData) {
+  return {
+    admission_date: data.admission_date || null,
+    stream_id: data.stream_id || null,
+    guardian_name: data.guardian_name?.trim() || null,
+    guardian_relationship: data.guardian_relationship?.trim() || null,
+    guardian_phone: data.guardian_phone?.trim() || null,
+    guardian_email: data.guardian_email?.trim() || null,
   };
 }
 
@@ -151,6 +200,15 @@ export async function createStudent(formData: FormData): Promise<ActionResult> {
       };
     }
 
+    const fieldError = studentFieldErrors(data);
+
+    if (fieldError) {
+      return {
+        success: false,
+        error: fieldError,
+      };
+    }
+
     if (data.class_id) {
       const { data: schoolClass, error: classError } = await context.client
         .from("classes")
@@ -176,6 +234,30 @@ export async function createStudent(formData: FormData): Promise<ActionResult> {
       }
     }
 
+    if (data.stream_id) {
+      let streamQuery = context.client
+        .from("streams")
+        .select("id")
+        .eq("id", data.stream_id)
+        .eq("school_id", context.schoolId);
+      if (data.class_id) streamQuery = streamQuery.eq("class_id", data.class_id);
+      const { data: stream, error: streamError } = await streamQuery.maybeSingle();
+
+      if (streamError) {
+        return {
+          success: false,
+          error: "Unable to validate the selected stream.",
+        };
+      }
+
+      if (!stream) {
+        return {
+          success: false,
+          error: "The selected stream does not belong to the selected class.",
+        };
+      }
+    }
+
     const { data: student, error } = await context.client
       .from("students")
       .insert({
@@ -189,6 +271,7 @@ export async function createStudent(formData: FormData): Promise<ActionResult> {
         phone: data.phone?.trim() || null,
         address: data.address?.trim() || null,
         status: data.status || "active",
+        ...studentRecordFields(data),
       })
       .select()
       .single();
@@ -224,6 +307,14 @@ export async function createStudent(formData: FormData): Promise<ActionResult> {
         error: error.message || "Failed to create student.",
       };
     }
+
+    await recordEnrollment(
+      context.client,
+      context.schoolId,
+      student.id,
+      data.class_id,
+      data.stream_id,
+    );
 
     revalidatePath("/school/students");
     revalidatePath("/school/dashboard");
@@ -290,6 +381,15 @@ export async function updateStudent(formData: FormData): Promise<ActionResult> {
       };
     }
 
+    const fieldError = studentFieldErrors(data);
+
+    if (fieldError) {
+      return {
+        success: false,
+        error: fieldError,
+      };
+    }
+
     if (data.class_id) {
       const { data: schoolClass, error: classError } = await context.client
         .from("classes")
@@ -311,6 +411,30 @@ export async function updateStudent(formData: FormData): Promise<ActionResult> {
         return {
           success: false,
           error: "The selected class does not belong to this school.",
+        };
+      }
+    }
+
+    if (data.stream_id) {
+      let streamQuery = context.client
+        .from("streams")
+        .select("id")
+        .eq("id", data.stream_id)
+        .eq("school_id", context.schoolId);
+      if (data.class_id) streamQuery = streamQuery.eq("class_id", data.class_id);
+      const { data: stream, error: streamError } = await streamQuery.maybeSingle();
+
+      if (streamError) {
+        return {
+          success: false,
+          error: "Unable to validate the selected stream.",
+        };
+      }
+
+      if (!stream) {
+        return {
+          success: false,
+          error: "The selected stream does not belong to the selected class.",
         };
       }
     }
@@ -359,6 +483,7 @@ export async function updateStudent(formData: FormData): Promise<ActionResult> {
         phone: data.phone?.trim() || null,
         address: data.address?.trim() || null,
         status,
+        ...studentRecordFields(data),
         updated_at: new Date().toISOString(),
       })
       .eq("id", studentId)
@@ -403,6 +528,14 @@ export async function updateStudent(formData: FormData): Promise<ActionResult> {
         error: error.message || "Failed to update student.",
       };
     }
+
+    await recordEnrollment(
+      context.client,
+      context.schoolId,
+      studentId,
+      data.class_id,
+      data.stream_id,
+    );
 
     revalidatePath("/school/students");
     revalidatePath(`/school/students/${studentId}`);

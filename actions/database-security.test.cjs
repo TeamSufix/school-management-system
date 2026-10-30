@@ -27,7 +27,7 @@ async function fixture(db) {
     create table teachers (id uuid primary key, school_id uuid, user_id uuid, status text);
     create table students (id uuid primary key, school_id uuid, class_id uuid, student_id text);
     create table student_parents (student_id uuid, parent_id uuid);
-    create table attendance (id uuid primary key, school_id uuid, student_id uuid, class_id uuid);
+    create table attendance (id uuid primary key, school_id uuid, student_id uuid, class_id uuid, date date not null default current_date, status text not null default 'present', constraint attendance_status_check check (status in ('present', 'absent', 'late')));
     create table results (id uuid primary key, school_id uuid, student_id uuid, class_id uuid, subject_id uuid, score numeric, academic_year text default '2026/2027', term text default 'term_1', grade text default 'F');
     create table result_amendments (id uuid primary key, school_id uuid, result_id uuid, amended_by uuid, new_score numeric, reason text, old_score numeric default 80, old_grade text default 'A', new_grade text default 'A', created_at timestamptz default now());
     create table fees (id uuid primary key, school_id uuid, student_id uuid, amount_due numeric, academic_year text default '2026/2027', term text default 'term_1');
@@ -81,6 +81,7 @@ test("database security proposals enforce role and parent boundaries", async (t)
   const db = new PGlite();
   try {
     await fixture(db);
+    await db.exec(readFileSync(path.join(__dirname, "..", "supabase", "migrations", "202610290001_attendance_status.sql"), "utf8"));
     await db.exec(`
       insert into teachers values ('${id(101)}', '${id(1)}', '${id(12)}', 'active'), ('${id(102)}', '${id(1)}', '${id(17)}', 'active');
       insert into teacher_assignments (school_id, teacher_id, class_id, subject_id) values ('${id(1)}', '${id(101)}', '${id(21)}', '${id(31)}');
@@ -118,6 +119,12 @@ test("database security proposals enforce role and parent boundaries", async (t)
       await assert.rejects(db.exec(`insert into results values ('${id(111)}', '${id(1)}', '${id(41)}', '${id(21)}', '${id(33)}', 90)`), /row-level security/);
       await assert.rejects(db.exec(`insert into attendance values ('${id(112)}', '${id(1)}', '${id(44)}', '${id(23)}')`), /row-level security/);
       await assert.rejects(db.exec(`insert into teacher_assignments (school_id, teacher_id, class_id, subject_id) values ('${id(1)}', '${id(101)}', '${id(23)}', '${id(33)}')`), /row-level security/);
+    });
+    await t.test("assigned teachers can record Excused attendance on a previous date", async () => {
+      await signIn(db, 12);
+      await db.exec(`insert into attendance (id, school_id, student_id, class_id, date, status) values ('${id(120)}', '${id(1)}', '${id(42)}', '${id(21)}', '2026-10-01', 'excused')`);
+      assert.equal((await db.query(`select status from attendance where id = '${id(120)}'`)).rows[0].status, "excused");
+      await assert.rejects(db.exec(`insert into attendance (id, school_id, student_id, class_id, date, status) values ('${id(121)}', '${id(1)}', '${id(42)}', '${id(21)}', '2026-10-01', 'unknown')`), /check constraint/);
     });
     await t.test("only admins can configure valid academic periods", async () => {
       await signIn(db, 14);

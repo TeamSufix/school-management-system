@@ -10,11 +10,17 @@ export type FeeTerm = "term_1" | "term_2" | "term_3";
 
 export type PaymentMethod = "cash" | "mobile_money" | "bank" | "card";
 
+export type FeeItem = {
+  name: string;
+  amount: number;
+};
+
 export type FeeRecord = {
   student_id: string;
   academic_year: string;
   term: FeeTerm;
   amount_due: number;
+  items?: FeeItem[];
 };
 
 export type PaymentRecord = {
@@ -478,6 +484,23 @@ export async function createFee(
       };
     }
 
+    const items = (record.items ?? [])
+      .map((item) => ({ name: item.name?.trim() ?? "", amount: Number(item.amount) }))
+      .filter((item) => item.name || item.amount);
+
+    if (items.length) {
+      if (items.some((item) => !item.name || item.name.length > 100)) {
+        return { success: false, error: "Each fee item needs a name of at most 100 characters." };
+      }
+      if (items.some((item) => !isValidMoney(item.amount) || item.amount <= 0)) {
+        return { success: false, error: "Each fee item needs a valid positive amount." };
+      }
+      const itemTotal = items.reduce((sum, item) => sum + moneyToCents(item.amount), 0);
+      if (itemTotal !== moneyToCents(amountDue)) {
+        return { success: false, error: "Fee items must add up exactly to the amount due." };
+      }
+    }
+
     const { data: student, error: studentError } = await context.client
       .from("students")
       .select("id")
@@ -526,6 +549,25 @@ export async function createFee(
         success: false,
         error: error.message || "Failed to create fee record.",
       };
+    }
+
+    if (items.length && fee) {
+      const { error: itemsError } = await context.client.from("fee_items").insert(
+        items.map((item) => ({
+          school_id: context.schoolId,
+          fee_id: fee.id,
+          name: item.name,
+          amount: item.amount,
+        })),
+      );
+
+      if (itemsError) {
+        await context.client.from("fees").delete().eq("id", fee.id).eq("school_id", context.schoolId);
+        return {
+          success: false,
+          error: "Unable to save the fee breakdown. Verify that the finance detail migration is installed.",
+        };
+      }
     }
 
     revalidatePath("/school/fees");
@@ -681,6 +723,7 @@ export async function createPayment(
         date: record.date,
         payment_method: record.payment_method,
         reference: record.reference?.trim() || null,
+        recorded_by: context.userId,
       })
       .select()
       .single();

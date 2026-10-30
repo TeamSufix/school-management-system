@@ -43,6 +43,30 @@ export default async function SchoolDashboard() {
         href: "/school/results",
         icon: "results",
       },
+      {
+        title: "Assessments",
+        description: "Create tests, assignments and exams with weighted scores.",
+        href: "/school/assessments",
+        icon: "results",
+      },
+      {
+        title: "Announcements",
+        description: "Read school announcements.",
+        href: "/school/announcements",
+        icon: "class",
+      },
+      {
+        title: "Notifications",
+        description: "View your notifications.",
+        href: "/school/notifications",
+        icon: "class",
+      },
+      {
+        title: "Timetable",
+        description: "View your class timetable.",
+        href: "/school/timetable",
+        icon: "class",
+      },
     ];
 
     return (
@@ -138,6 +162,26 @@ export default async function SchoolDashboard() {
               Open workspace
             </p>
           </Link>
+
+          <Link
+            href="/school/announcements"
+            className="group rounded-[24px] border border-slate-200/80 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-green-200 hover:shadow-md"
+          >
+            <h2 className="font-bold text-slate-900">Announcements</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              Read school announcements.
+            </p>
+          </Link>
+
+          <Link
+            href="/school/notifications"
+            className="group rounded-[24px] border border-slate-200/80 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-green-200 hover:shadow-md"
+          >
+            <h2 className="font-bold text-slate-900">Notifications</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              View your notifications.
+            </p>
+          </Link>
         </section>
       </main>
     );
@@ -149,7 +193,7 @@ export default async function SchoolDashboard() {
     redirect("/login");
   }
 
-  const [studentsResult, teachersResult, classesResult, attendanceResult] =
+  const [studentsResult, teachersResult, classesResult, attendanceResult, feesResult, paymentsResult, attendanceTotal] =
     await Promise.all([
       supabase
         .from("students")
@@ -183,7 +227,30 @@ export default async function SchoolDashboard() {
         })
         .eq("school_id", schoolId)
         .eq("date", new Date().toISOString().split("T")[0]),
+
+      supabase
+        .from("fees")
+        .select("id, amount_due")
+        .eq("school_id", schoolId),
+
+      supabase
+        .from("payments")
+        .select("amount")
+        .eq("school_id", schoolId),
+
+      supabase
+        .from("attendance")
+        .select("id", { count: "exact", head: true })
+        .eq("school_id", schoolId)
+        .in("status", ["present", "late"]),
     ]);
+
+  const totalDue = (feesResult.data ?? []).reduce((sum, fee) => sum + Number(fee.amount_due), 0);
+  const totalPaid = (paymentsResult.data ?? []).reduce((sum, payment) => sum + Number(payment.amount), 0);
+  const outstanding = totalDue - totalPaid;
+  const activeStudents = studentsResult.count ?? 0;
+  const attendanceRate = activeStudents ? Math.round(((attendanceTotal.count ?? 0) / Math.max(1, activeStudents)) * 100) : 0;
+  const currency = (value: number) => `GH₵ ${value.toLocaleString("en-GH", { maximumFractionDigits: 0 })}`;
 
   const stats = [
     {
@@ -206,9 +273,21 @@ export default async function SchoolDashboard() {
     },
     {
       label: "Today's Attendance",
-      value: attendanceResult.count ?? 0,
+      value: `${attendanceResult.count ?? 0} (${attendanceRate}%)`,
       href: "/school/attendance",
       icon: "attendance",
+    },
+    {
+      label: "Fees Collected",
+      value: currency(totalPaid),
+      href: "/school/fees",
+      icon: "fees",
+    },
+    {
+      label: "Outstanding Fees",
+      value: currency(outstanding),
+      href: "/school/reports",
+      icon: "fees",
     },
   ];
 
@@ -256,6 +335,30 @@ export default async function SchoolDashboard() {
       icon: "results",
     },
     {
+      title: "Assessments",
+      description: "Create tests, assignments and exams with weighted scores.",
+      href: "/school/assessments",
+      icon: "results",
+    },
+    {
+      title: "Announcements",
+      description: "Publish and read school announcements.",
+      href: "/school/announcements",
+      icon: "class",
+    },
+    {
+      title: "Notifications",
+      description: "View your notifications.",
+      href: "/school/notifications",
+      icon: "class",
+    },
+    {
+      title: "Timetable",
+      description: "Build and view class timetables.",
+      href: "/school/timetable",
+      icon: "class",
+    },
+    {
       title: "Fees",
       description: "Manage fees and payments.",
       href: "/school/fees",
@@ -272,6 +375,12 @@ export default async function SchoolDashboard() {
       description: "Manage parent accounts and children.",
       href: "/school/parents",
       icon: "parent",
+    },
+    {
+      title: "Reports",
+      description: "Attendance reports, fee collection and exports.",
+      href: "/school/reports",
+      icon: "results",
     },
   ];
 
@@ -309,7 +418,7 @@ export default async function SchoolDashboard() {
             </p>
 
             <p className="mt-1 text-3xl font-bold tracking-tight text-slate-900">
-              {stat.value.toLocaleString()}
+              {typeof stat.value === "number" ? stat.value.toLocaleString() : stat.value}
             </p>
           </Link>
         ))}

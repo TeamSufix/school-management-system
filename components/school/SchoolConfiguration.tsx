@@ -3,6 +3,8 @@ import { getManagementContext } from "@/lib/auth/get-management-context";
 import { defaultAcademicPeriod } from "@/lib/academics/period";
 import { saveAcademicSettings, saveTeacherAssignment, removeTeacherAssignment, linkTeacherLogin } from "@/actions/configuration";
 import ConfigurationForm from "@/components/school/ConfigurationForm";
+import SchoolIdentitySettings from "@/components/school/SchoolIdentitySettings";
+import AcademicStructure from "@/components/school/AcademicStructure";
 
 const input = "block w-full rounded-lg border border-slate-300 p-2";
 
@@ -23,7 +25,9 @@ export default async function SchoolConfiguration({ schoolId }: { schoolId?: str
   const period = settings.data ?? defaultAcademicPeriod();
   return (
     <main className="mx-auto max-w-5xl space-y-8 p-6">
-      <h1 className="text-3xl font-bold">Academic settings and teacher assignments</h1>
+      <h1 className="text-3xl font-bold">School settings</h1>
+      <SchoolIdentitySettings schoolId={context.schoolId} />
+      <AcademicStructure schoolId={context.schoolId} />
       <section className="space-y-4"><h2 className="text-xl font-bold">Current academic period</h2><p>These defaults are used for new results and fee records. Historical records are not changed.</p>
         <ConfigurationForm action={saveAcademicSettings} label="Save academic period">
           <input type="hidden" name="school_id" value={context.schoolId} />

@@ -192,6 +192,7 @@ export default function FeesPageClient({ students, schoolId, initialPeriod = def
 
   const [feeStudentId, setFeeStudentId] = useState("");
   const [feeAmount, setFeeAmount] = useState("");
+  const [feeItems, setFeeItems] = useState<{ name: string; amount: string }[]>([]);
   const [savingFee, setSavingFee] = useState(false);
 
   const [selectedFee, setSelectedFee] = useState<Fee | null>(null);
@@ -300,12 +301,17 @@ export default function FeesPageClient({ students, schoolId, initialPeriod = def
 
     setSavingFee(true);
 
+    const items = feeItems
+      .map((item) => ({ name: item.name.trim(), amount: Number(item.amount) }))
+      .filter((item) => item.name || item.amount);
+
     const result = await createFee(
       {
         student_id: feeStudentId,
         academic_year: academicYear,
         term,
         amount_due: amount,
+        ...(items.length ? { items } : {}),
       },
       schoolId,
     );
@@ -320,6 +326,7 @@ export default function FeesPageClient({ students, schoolId, initialPeriod = def
 
     setFeeStudentId("");
     setFeeAmount("");
+    setFeeItems([]);
     setShowFeeForm(false);
 
     await Promise.all([loadFees(), loadPayments()]);
@@ -777,6 +784,52 @@ export default function FeesPageClient({ students, schoolId, initialPeriod = def
                   {savingFee ? "Saving..." : "Create Fee"}
                 </button>
               </div>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Fee breakdown (optional — must total the amount due)
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setFeeItems((items) => [...items, { name: "", amount: "" }])}
+                  className="text-xs font-semibold text-green-700"
+                >
+                  + Add item
+                </button>
+              </div>
+              {feeItems.map((item, index) => (
+                <div key={index} className="grid gap-3 sm:grid-cols-[1.5fr_1fr_auto]">
+                  <input
+                    value={item.name}
+                    onChange={(event) =>
+                      setFeeItems((items) => items.map((row, i) => (i === index ? { ...row, name: event.target.value } : row)))
+                    }
+                    placeholder="Tuition, ICT, Books…"
+                    maxLength={100}
+                    className={inputClass}
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={item.amount}
+                    onChange={(event) =>
+                      setFeeItems((items) => items.map((row, i) => (i === index ? { ...row, amount: event.target.value } : row)))
+                    }
+                    placeholder="0.00"
+                    className={inputClass}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setFeeItems((items) => items.filter((_, i) => i !== index))}
+                    className="rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-500"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         )}

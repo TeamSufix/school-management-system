@@ -47,12 +47,17 @@ export default async function PlatformStudentsPage({ params }: Props) {
     notFound();
   }
 
-  const [{ data: classes }, { data: students, error }] = await Promise.all([
+  const [{ data: classes }, { data: streams }, { data: students, error }] = await Promise.all([
     context.client
       .from("classes")
       .select("id, name")
       .eq("school_id", schoolId)
       .order("name"),
+
+    context.client
+      .from("streams")
+      .select("id, name, class_id")
+      .eq("school_id", schoolId),
 
     context.client
       .from("students")
@@ -178,7 +183,7 @@ export default async function PlatformStudentsPage({ params }: Props) {
               </p>
             </div>
 
-            <CreateStudentForm classes={classes ?? []} schoolId={schoolId} />
+            <CreateStudentForm classes={classes ?? []} streams={streams ?? []} schoolId={schoolId} />
           </section>
 
           <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">

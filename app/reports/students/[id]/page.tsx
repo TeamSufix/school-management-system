@@ -38,6 +38,9 @@ export default async function StudentReportPage({ params, searchParams }: {
         return <tr key={result.id} className="border-b"><td className="p-3">{subject?.name ?? "Subject unavailable"}</td><td className="p-3">{result.score}</td><td className="p-3">{result.grade}</td></tr>;
       })}</tbody></table>
       {!report.results.length ? <p>No results recorded for this period.</p> : <section className="rounded-xl bg-slate-50 p-5"><p>Subjects recorded: {report.results.length}</p><p>Total: {total.toFixed(2)} / {report.results.length * 100}</p><p>Average: {average?.toFixed(2)}% · Grade: {calculateGrade(average ?? 0)}</p></section>}
+      {!!report.assessments.length && <section><h3 className="mb-2 text-lg font-semibold">Assessment breakdown</h3><table className="w-full text-left"><thead><tr className="border-b"><th className="p-3">Assessment</th><th className="p-3">Subject</th><th className="p-3">Type</th><th className="p-3">Score</th><th className="p-3">Weighted</th></tr></thead><tbody>{report.assessments.map((assessment) => (
+        <tr key={assessment.id} className="border-b"><td className="p-3">{assessment.name}</td><td className="p-3">{assessment.subject}</td><td className="p-3">{assessment.assessment_type.replaceAll("_", " ")}</td><td className="p-3">{assessment.score === null ? "—" : `${assessment.score} / ${assessment.max_score}`}</td><td className="p-3">{assessment.contribution === null ? "—" : `${assessment.contribution.toFixed(2)} / ${assessment.weight}`}</td></tr>
+      ))}</tbody></table></section>}
       <footer className="space-y-3 text-sm text-slate-600"><p>Grades: A ≥ 80, B ≥ 70, C ≥ 60, D ≥ 50, F &lt; 50. Scores include approved amendments. Averages cover recorded subjects only.</p><p>This report reflects records available when generated. Contact the school for verification.</p></footer>
     </main>
   );

@@ -137,6 +137,94 @@ for (const status of ["inactive", "active"]) {
   });
 }
 
+test("attendance accepts past dates and Excused, but rejects invalid, future and mixed batches", () => {
+  const { validateAttendanceBatch } = load("lib/academics/attendance.ts", {});
+  const record = { student_id: "child", class_id: "class", date: "2026-10-01", status: "excused" };
+  assert.equal(validateAttendanceBatch([record], "2026-10-29"), null);
+  for (const records of [[], [null], [{ ...record, date: "2026-02-30" }], [{ ...record, date: "2026-10-30" }], [{ ...record, status: "unknown" }], [record, record], [record, { ...record, student_id: "other", date: "2026-10-02" }], [record, { ...record, student_id: "other", class_id: "other" }]]) {
+    assert.ok(validateAttendanceBatch(records, "2026-10-29"));
+  }
+});
+
+function studentRecordFixture(role, options = {}) {
+  const calls = [];
+  const data = {
+    attendance: [{ id: "attendance", class_id: "class", date: "2026-10-01", status: "excused", classes: { name: "Class one" } }],
+    results: [{ id: "math", class_id: "class", subject_id: "math", score: 70, grade: "B" }, { id: "science", class_id: "class", subject_id: "science", score: 60, grade: "C" }],
+    result_amendments: [{ result_id: "math", new_score: 88, new_grade: "A" }],
+    fees: [{ id: "fee", amount_due: "0.60", academic_year: "2026/2027", term: "term_1" }],
+    payments: [{ id: "one", fee_id: "fee", amount: "0.10" }, { id: "two", fee_id: "fee", amount: "0.20" }],
+  };
+  const client = { from(table) {
+    const query = { table, filters: {}, select() { return query; }, eq(key, value) { query.filters[key] = value; return query; }, order() { return query; }, async maybeSingle() {
+      if (table === "student_parents") {
+        assert.equal(query.filters.parent_id, "actor");
+        assert.equal(query.filters.student_id, "child");
+        return { data: options.linked === false ? null : { student_id: "child" }, error: null };
+      }
+      assert.equal(table, "students");
+      assert.equal(query.filters.school_id, "school");
+      assert.equal(query.filters.id, "child");
+      return { data: { id: "child", school_id: "school", class_id: "class", first_name: "Test", last_name: "Child", student_id: "TEST-1" }, error: null };
+    } };
+    return query;
+  } };
+  const context = { role, schoolId: "school", client, teacherAssignments: options.assigned === false ? [] : [{ class_id: "class", subject_id: "math" }] };
+  const studentModule = load("lib/students/records.ts", {
+    "@/lib/auth/get-user": { getCurrentUser: async () => ({ id: "actor", role, schoolId: "school" }) },
+    "@/lib/auth/get-management-context": { getManagementContext: async () => { assert.notEqual(role, "parent"); return context; } },
+    "@/lib/auth/teacher-scope": load("lib/auth/teacher-scope.ts", {}),
+    "@/lib/supabase/server": { createClient: async () => client },
+    "@/lib/supabase/read-all": { readAllRows: async (query) => {
+      calls.push(query.table);
+      assert.equal(query.filters.school_id, "school");
+      assert.equal(query.filters[query.table === "result_amendments" ? "results.student_id" : "student_id"], "child");
+      return data[query.table];
+    } },
+    "@/lib/academics/money": load("lib/academics/money.ts", {}),
+  });
+  return { ...studentModule, calls };
+}
+
+test("student profile records verify parent links and reject unassigned teachers", async () => {
+  for (const [role, options] of [["parent", { linked: false }], ["teacher", { assigned: false }]]) {
+    const fixture = studentRecordFixture(role, options);
+    assert.equal(await fixture.getStudentRecords("child"), null);
+    assert.equal(fixture.calls.length, 0);
+  }
+});
+
+test("teacher student records exclude finance and unassigned subject results", async () => {
+  const fixture = studentRecordFixture("teacher");
+  const records = await fixture.getStudentRecords("child");
+  assert.equal(records.fees, null);
+  assert.equal(records.payments, null);
+  assert.equal(records.results.length, 1);
+  assert.equal(records.results[0].score, 88);
+  assert.equal(fixture.calls.includes("fees"), false);
+  assert.equal(fixture.calls.includes("payments"), false);
+});
+
+test("accountant student records contain finance only and use exact cent balances", async () => {
+  const fixture = studentRecordFixture("accountant");
+  const records = await fixture.getStudentRecords("child");
+  assert.equal(records.attendance, null);
+  assert.equal(records.results, null);
+  assert.equal(records.fees[0].total_paid, 0.3);
+  assert.equal(records.fees[0].balance, 0.3);
+  assert.equal(fixture.calls.includes("attendance"), false);
+  assert.equal(fixture.calls.includes("results"), false);
+});
+
+test("student query views only load the requested record section", async () => {
+  const fixture = studentRecordFixture("school_admin");
+  const records = await fixture.getStudentRecords("child", undefined, "attendance");
+  assert.equal(records.attendance.length, 1);
+  assert.equal(records.results, null);
+  assert.equal(records.fees, null);
+  assert.deepEqual(fixture.calls, ["attendance"]);
+});
+
 test("teacher scope rejects unassigned and crossed class/subject pairs", () => {
   const { canAccessTeachingScope } = load("lib/auth/teacher-scope.ts", {});
   const context = { role: "teacher", teacherAssignments: [{ class_id: "one", subject_id: "math" }, { class_id: "two", subject_id: "science" }] };

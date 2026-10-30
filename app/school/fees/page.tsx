@@ -1,16 +1,21 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import StudentRecords from "@/components/school/StudentRecords";
 
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentSchool } from "@/lib/auth/get-user";
 
 import FeesPageClient from "@/components/school/AcademicFeesForm";
 
-export default async function FeesPage() {
+export default async function FeesPage({ searchParams }: { searchParams: Promise<{ student?: string | string[] }> }) {
   const currentSchool = await getCurrentSchool();
 
   if (!currentSchool) {
     redirect("/login");
   }
+
+  const { student } = await searchParams;
+  if (student !== undefined && (typeof student !== "string" || !student.trim())) notFound();
+  if (student) return <main className="mx-auto max-w-6xl px-6 py-8"><StudentRecords studentId={student} view="fees" /></main>;
 
   const supabase = await createClient();
 
